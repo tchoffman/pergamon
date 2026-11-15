@@ -69,6 +69,12 @@ def test_bulletin_renders_listings_and_posts(client, monkeypatch):
     monkeypatch.setattr(classifieds, "fetch_listings", lambda *a, **k: [offer, want])
     post = summarize(sign_event(build_post(pub, "Road closed at bridge", "news"), nsec))
     monkeypatch.setattr(board, "fetch_posts", lambda *a, **k: [post])
+    from rag import skills
+
+    async def _skills(*a, **k):
+        return [sign_event(skills.build_skill_event(pub, "Midwife", "", category="medical"), nsec)]
+
+    monkeypatch.setattr(skills, "afetch", _skills)
     r = client.get("/bulletin")
     assert r.status_code == 200
     html = r.text
@@ -76,3 +82,4 @@ def test_bulletin_renders_listings_and_posts(client, monkeypatch):
     assert "Need firewood" in html
     assert "Road closed at bridge" in html
     assert "Main St Host" in html
+    assert "Midwife" in html

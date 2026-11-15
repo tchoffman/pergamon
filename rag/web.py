@@ -414,12 +414,15 @@ def bulletin(request: Request, days: float = 14):
     relays = _load_relays_from_config()
     listings = _cl.search_infos(_cl.fetch_listings(relays, limit=200))
     posts = _bd.fetch_posts(relays, days=days)
+    from rag import skills as _sk
+    skill_list = _sk.search(asyncio.run(_sk.afetch(relays)))
     urls = _cards.lan_urls(request.url.port or 8090)
     join_url = urls[0] if urls else str(request.base_url)
     return templates.TemplateResponse(request, "bulletin.html", {
         "offers": [l for l in listings if l["side"] == "offering"],
         "wanted": [l for l in listings if l["side"] == "looking-for"],
         "posts": posts,
+        "skills": skill_list,
         "categories": _bd.CATEGORIES,
         "printed": _t.strftime("%A %B %-d, %Y %H:%M"),
         "host": get_active().meta() if get_active() else None,

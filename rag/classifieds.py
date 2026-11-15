@@ -238,6 +238,7 @@ def republish(d: str, nsec: str, *, status: str | None = None,
     if status:
         new_tags.append(["status", status])
     fresh = build_event(kind=ev.kind, content=ev.content, pubkey_hex=ev.pubkey, tags=new_tags)
+    fresh.created_at = max(fresh.created_at, ev.created_at + 1)  # must supersede the old version
     sign_event(fresh, nsec)
     return fresh
 

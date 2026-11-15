@@ -24,6 +24,7 @@ Usage:
   pergamon nostr ...           Sign + publish events (post, relays)
   pergamon classified ...      Classifieds (post, list, search, mine, renew, close)
   pergamon board ...           Community board (post, list)
+  pergamon skills ...          Skills + services you offer (post, find, renew)
   pergamon library ...         Lend + borrow books/tools/seeds; share catalog
   pergamon sync ...            Gossip with other pergamons; USB bundles (pull/push/export/import)
   pergamon delegation ...      NIP-26: authorize another key to post on your behalf
@@ -174,6 +175,12 @@ case "$cmd" in
     require_venv
     cd "$REPO_ROOT"
     exec "$VENV_PY" -m rag.nostr "$@"
+    ;;
+
+  skills)
+    require_venv
+    cd "$REPO_ROOT"
+    exec "$VENV_PY" -m rag.skills "$@"
     ;;
 
   library)

@@ -73,6 +73,20 @@
   </div>
   {% else %}<p class="small">No live wanted posts.</p>{% endif %}
 
+  {% if skills %}
+  <h2>Skills &amp; services offered</h2>
+  <div class="cols">
+    {% for s in skills %}
+    <div class="item">
+      <strong>{{ s.title }}</strong> <span class="small">({{ s.category }}{% if s.level %}, {{ s.level }}{% endif %})</span>
+      {% if s.description %}<div class="small">{{ s.description }}</div>{% endif %}
+      <div class="small">{{ [s.availability, s.rate, s.location] | select | join(" · ") }}</div>
+      <div class="tear">ref {{ s.d }} · {{ s.pubkey[:12] }}…</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <p class="small" style="margin-top:1.5em">To respond to a listing, leave a note in the drop box quoting
     the <em>ref</em> code, or message the poster from any Pergamon.</p>
 </body>

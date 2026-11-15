@@ -47,8 +47,7 @@ def test_classified_renew_supersedes(relays, tmp_path, monkeypatch):
                                        listing_id="honey-1")
     assert res[a.url][0]
     closed = classifieds.republish("honey-1", nsec, status="sold")
-    closed.created_at = ev.created_at + 1  # same-second post; force ordering
-    sign_event(closed, nsec)
+    assert closed.created_at > ev.created_at
     publish(closed, [a.url])
     assert classifieds.fetch_listings([a.url]) == []
     all_versions = classifieds.fetch_listings([a.url], live_only=False)
