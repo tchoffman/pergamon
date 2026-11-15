@@ -17,9 +17,9 @@ Ideas that came up while building, not yet agreed. Mark ✅ / ❌ / later.
 - **"Verified" badge for names.** Show a check next to a poster's name when
   their NIP-05 handle resolves on a pergamon you trust, so look-alike names
   are harder to pass off.
-- **Hub roles.** Today the web UI can't tell the host from a guest. A host
-  PIN for host-only actions (posting paper slips as a member, food, settings)
-  would make shared hubs safer.
+- **Host PIN.** Host-only actions are now limited to the hub machine itself.
+  A PIN would let the host do them from their own phone without opening them
+  to every guest.
 
 ## Grid-down network
 
