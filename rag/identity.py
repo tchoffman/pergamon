@@ -262,6 +262,7 @@ def _cmd_create(argv: list[str]) -> int:
         return 1
     set_active(name)
     console.print(f"[green]Created[/green] identity [bold]{ident.name}[/bold]")
+    _publish_profile_best_effort(ident, nsec)
     console.print(f"  npub: [cyan]{ident.npub}[/cyan]")
     console.print(f"  stored at: {ID_DIR}/{name}.key (mode 0600)")
     if ident.nip05:
@@ -269,6 +270,26 @@ def _cmd_create(argv: list[str]) -> int:
     console.print("\n[yellow]Back up your nsec:[/yellow]")
     console.print(f"  pergamon identity export {name}")
     return 0
+
+
+def _publish_profile_best_effort(ident: Identity, nsec: str) -> None:
+    """Share the display name so neighbors see "from Rosa", not a hex key.
+    Skipped quietly if no relay is reachable; re-run later with the web
+    profile form or `pergamon nostr post --kind 0`."""
+    name = ident.display_name or ident.name
+    try:
+        from rag.nostr import _load_relays_from_config, build_event, publish, sign_event
+        meta = {"display_name": name}
+        if ident.nip05:
+            meta["nip05"] = ident.nip05
+        ev = sign_event(build_event(0, json.dumps(meta, separators=(",", ":")), ident.hex_pub), nsec)
+        ok = any(r[0] for r in publish(ev, _load_relays_from_config()).values())
+    except Exception:
+        ok = False
+    if ok:
+        console.print(f"  profile shared: neighbors will see [bold]{name}[/bold]")
+    else:
+        console.print("  [dim](no relay reachable — name not shared yet; publish it later from /identity)[/dim]")
 
 
 def _cmd_show(argv: list[str]) -> int:

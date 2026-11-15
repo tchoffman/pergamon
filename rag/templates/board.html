@@ -80,7 +80,7 @@
           const head = el("div", "listing-head");
           head.appendChild(el("span", p.category === "warning" ? "badge want" : "badge offer", p.category_title.toUpperCase()));
           head.appendChild(el("span", "muted small",
-            "  " + new Date(p.created_at * 1000).toLocaleString() + " · " + p.pubkey.slice(0, 12) + "…"));
+            "  " + new Date(p.created_at * 1000).toLocaleString() + " · " + (p.author || p.pubkey.slice(0, 8) + "…")));
           c.appendChild(head);
           c.appendChild(el("p", "", p.text));
           if (p.location) c.appendChild(el("div", "muted small", p.location));

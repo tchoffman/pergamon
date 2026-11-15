@@ -278,6 +278,17 @@ def _is_hex_pub(v: str | None) -> bool:
     return bool(v) and len(v) == 64 and all(c in "0123456789abcdef" for c in v)
 
 
+def _with_authors(rows: list[dict], relays: list[str] | None = None) -> list[dict]:
+    """Attach a human 'author' name (from kind-0 profiles) to each row."""
+    from rag import profiles as _pf
+    names = _pf.fetch_names(relays or _load_relays_from_config(), [r["pubkey"] for r in rows])
+    for r in rows:
+        r["author"] = _pf.label(names, r["pubkey"])
+        if r.get("d"):
+            r["ref"] = r["d"][:6]
+    return rows
+
+
 def _whose(pubkey: str | None) -> str:
     """The pubkey a request acts for: a browser-held key if given, else the
     machine's active identity."""
@@ -312,7 +323,7 @@ def api_classifieds(q: str = "", side: str | None = None, tag: str | None = None
                     all: bool = False, limit: int = 100):
     relays = _load_relays_from_config()
     events = _cl.fetch_listings(relays, tag=tag or None, limit=limit, live_only=not all)
-    return {"listings": _cl.search_infos(events, query=q, side=side or None),
+    return {"listings": _with_authors(_cl.search_infos(events, query=q, side=side or None), relays),
             "relays": relays}
 
 
@@ -411,7 +422,8 @@ def board_page(request: Request):
 def api_board(category: str | None = None, days: float = _bd.DEFAULT_DAYS):
     if category and category not in _bd.CATEGORIES:
         raise HTTPException(400, "unknown category")
-    return {"posts": _bd.fetch_posts(_load_relays_from_config(), category or None, days)}
+    relays = _load_relays_from_config()
+    return {"posts": _with_authors(_bd.fetch_posts(relays, category or None, days), relays)}
 
 
 @app.post("/api/board")
@@ -438,6 +450,7 @@ def bulletin(request: Request, days: float = 14):
     posts = _bd.fetch_posts(relays, days=days)
     from rag import skills as _sk
     skill_list = _sk.search(asyncio.run(_sk.afetch(relays)))
+    _with_authors(listings + posts + skill_list, relays)
     urls = _cards.lan_urls(request.url.port or 8090)
     join_url = urls[0] if urls else str(request.base_url)
     return templates.TemplateResponse(request, "bulletin.html", {
@@ -639,9 +652,10 @@ def draft_classified_republish(d: str, action: str, body: dict):
     pub = _need_pub(body)
     if action not in ("renew", "close"):
         raise HTTPException(404, "unknown action")
-    raw = _cl._load_mine().get(d)
-    if not raw or raw["pubkey"] != pub:
-        raise HTTPException(404, f"no listing {d} for this key")
+    try:
+        d = _cl.resolve_ref(d, pub)
+    except KeyError as e:
+        raise HTTPException(404, str(e).strip('"'))
     return _draft(_cl.build_republish(d, status="sold" if action == "close" else None))
 
 
@@ -764,7 +778,7 @@ def skills_page(request: Request):
 @app.get("/api/skills")
 def api_skills(q: str = "", category: str | None = None):
     events = asyncio.run(_sk.afetch(_load_relays_from_config(), category or None))
-    return {"skills": _sk.search(events, q, category or None)}
+    return {"skills": _with_authors(_sk.search(events, q, category or None))}
 
 
 @app.get("/api/skills/mine")
@@ -791,9 +805,10 @@ def draft_skill_republish(d: str, action: str, body: dict):
     pub = _need_pub(body)
     if action not in ("renew", "close"):
         raise HTTPException(404, "unknown action")
-    raw = _sk._load_mine().get(d)
-    if not raw or raw["pubkey"] != pub:
-        raise HTTPException(404, f"no skill listing {d} for this key")
+    try:
+        d = _sk.resolve_ref(d, pub)
+    except KeyError as e:
+        raise HTTPException(404, str(e).strip('"'))
     return _draft(_sk.build_republish(d, "closed" if action == "close" else None))
 
 

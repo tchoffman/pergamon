@@ -136,10 +136,25 @@ def _remember(ev: Event) -> None:
     MINE_PATH.write_text(json.dumps(mine, indent=2))
 
 
+def resolve_ref(ref: str, pubkey_hex: str | None = None) -> str:
+    """Full listing id from a full id or a unique prefix (the 6-character
+    ref printed on the bulletin). Optionally limited to one author."""
+    mine = _load_mine()
+    ref = ref.strip().lower()
+    if ref in mine and (pubkey_hex is None or mine[ref]["pubkey"] == pubkey_hex):
+        return ref
+    hits = [d for d, raw in mine.items()
+            if d.startswith(ref) and (pubkey_hex is None or raw["pubkey"] == pubkey_hex)]
+    if not hits:
+        raise KeyError(f"no local skill listing matching {ref!r}")
+    if len(hits) > 1:
+        raise KeyError(f"ref {ref!r} matches {len(hits)} skill listings — use more characters")
+    return hits[0]
+
+
 def build_republish(d: str, status: str | None = None) -> Event:
     mine = _load_mine()
-    if d not in mine:
-        raise KeyError(f"no local skill listing {d!r}")
+    d = resolve_ref(d)
     raw = mine[d]
     now = int(time.time())
     tags = [t for t in raw["tags"] if t[0] not in ("expires_at", "published_at")

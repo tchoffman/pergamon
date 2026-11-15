@@ -40,7 +40,7 @@
     <div class="item">
       <strong>{{ p.category_title }}</strong>
       <div>{{ p.text }}</div>
-      <div class="small">{{ p.location }}{% if p.location %} · {% endif %}from {{ p.pubkey[:12] }}…</div>
+      <div class="small">{{ p.location }}{% if p.location %} · {% endif %}from {{ p.author }}</div>
     </div>
     {% endfor %}
   </div>
@@ -52,9 +52,9 @@
     {% for l in offers %}
     <div class="item">
       <strong>{{ l.title }}</strong>{% if l.qty %} — {{ l.qty }}{% endif %}
-      <div>{% if l.price_oz_ag is not none %}{{ l.price_oz_ag }} oz Ag{% endif %}{% if l.price_oz_ag is not none and l.price_usd is not none %} · {% endif %}{% if l.price_usd is not none %}${{ l.price_usd }}{% endif %}{% if l.price_oz_ag is none and l.price_usd is none %}barter / offer{% endif %}{% if l.accepts %} · accepts {{ l.accepts | join(", ") }}{% endif %}</div>
+      <div>{% if l.price_oz_ag is not none %}{{ '%g' % l.price_oz_ag }} oz Ag{% endif %}{% if l.price_oz_ag is not none and l.price_usd is not none %} · {% endif %}{% if l.price_usd is not none %}${{ '%g' % l.price_usd }}{% endif %}{% if l.price_oz_ag is none and l.price_usd is none %}barter / offer{% endif %}{% if l.accepts %} · accepts {{ l.accepts | join(", ") }}{% endif %}</div>
       {% if l.description %}<div class="small">{{ l.description }}</div>{% endif %}
-      <div class="tear">ref {{ l.d }} · {{ l.pubkey[:12] }}…{% if l.location %} · {{ l.location }}{% endif %}</div>
+      <div class="tear">ref <b>{{ l.ref }}</b> · {{ l.author }}{% if l.location %} · {{ l.location }}{% endif %}</div>
     </div>
     {% endfor %}
   </div>
@@ -67,7 +67,7 @@
     <div class="item">
       <strong>{{ l.title }}</strong>{% if l.qty %} — {{ l.qty }}{% endif %}
       {% if l.description %}<div class="small">{{ l.description }}</div>{% endif %}
-      <div class="tear">ref {{ l.d }} · {{ l.pubkey[:12] }}…{% if l.location %} · {{ l.location }}{% endif %}</div>
+      <div class="tear">ref <b>{{ l.ref }}</b> · {{ l.author }}{% if l.location %} · {{ l.location }}{% endif %}</div>
     </div>
     {% endfor %}
   </div>
@@ -81,7 +81,7 @@
       <strong>{{ s.title }}</strong> <span class="small">({{ s.category }}{% if s.level %}, {{ s.level }}{% endif %})</span>
       {% if s.description %}<div class="small">{{ s.description }}</div>{% endif %}
       <div class="small">{{ [s.availability, s.rate, s.location] | select | join(" · ") }}</div>
-      <div class="tear">ref {{ s.d }} · {{ s.pubkey[:12] }}…</div>
+      <div class="tear">ref <b>{{ s.ref }}</b> · {{ s.author }}</div>
     </div>
     {% endfor %}
   </div>

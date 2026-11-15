@@ -108,7 +108,7 @@
       if (l.accepts && l.accepts.length) meta.push("accepts: " + l.accepts.join(", "));
       if (l.hashtags && l.hashtags.length) meta.push(l.hashtags.map(t => "#" + t).join(" "));
       meta.push(daysLeft(l));
-      meta.push("from " + l.pubkey.slice(0, 12) + "…");
+      meta.push("from " + (l.author || l.pubkey.slice(0, 8) + "…"));
       c.appendChild(el("div", "muted small", meta.filter(Boolean).join("  ·  ")));
       const rep = el("div", "muted small", "");
       c.appendChild(rep);

@@ -215,13 +215,28 @@ def _event_from_json(raw: dict) -> Event:
     )
 
 
+def resolve_ref(ref: str, pubkey_hex: str | None = None) -> str:
+    """Full listing id from a full id or a unique prefix (the 6-character
+    ref printed on the bulletin). Optionally limited to one author."""
+    mine = _load_mine()
+    ref = ref.strip().lower()
+    if ref in mine and (pubkey_hex is None or mine[ref]["pubkey"] == pubkey_hex):
+        return ref
+    hits = [d for d, raw in mine.items()
+            if d.startswith(ref) and (pubkey_hex is None or raw["pubkey"] == pubkey_hex)]
+    if not hits:
+        raise KeyError(f"no local listing matching {ref!r}")
+    if len(hits) > 1:
+        raise KeyError(f"ref {ref!r} matches {len(hits)} listings — use more characters")
+    return hits[0]
+
+
 def build_republish(d: str, *, status: str | None = None,
                     ttl_days: float = DEFAULT_TTL_DAYS) -> Event:
     """Unsigned new version of a remembered listing: fresh expiry (renew) or
     new status (close). Same d-tag, strictly newer timestamp."""
     mine = _load_mine()
-    if d not in mine:
-        raise KeyError(f"no local listing with id {d!r}")
+    d = resolve_ref(d)
     ev = _event_from_json(mine[d])
     now = int(time.time())
     new_tags = [t for t in ev.tags
@@ -434,7 +449,7 @@ def _cmd_post(argv: list[str]) -> int:
         return 1
     ok = _report(results)
     d = next(t[1] for t in ev.tags if t[0] == "d")
-    console.print(f"\nlisting id: [cyan]{d}[/cyan]  (renew with: pergamon classified renew {d})")
+    console.print(f"\nref: [cyan]{d[:6]}[/cyan]  (renew with: pergamon classified renew {d[:6]})")
     return 0 if ok else 1
 
 
@@ -452,7 +467,8 @@ def _cmd_republish(argv: list[str], status: str | None) -> int:
         return 1
     ok = _report(publish(ev, _load_relays_from_config()))
     _remember(ev)
-    console.print(f"[green]{'closed' if status else 'renewed'}[/green] {argv[0]}")
+    console.print(f"[green]{'closed' if status else 'renewed'}[/green] {summarize(ev)['d'][:6]} — "
+                  f"{summarize(ev)['title']}")
     return 0 if ok else 1
 
 
@@ -486,7 +502,7 @@ def _cmd_mine(argv: list[str]) -> int:
         console.print("[yellow]you have no listings yet[/yellow]")
         return 0
     table = Table(title=f"Listings by {ident.name}")
-    for c in ("id", "side", "title", "status", "expires"):
+    for c in ("ref", "side", "title", "status", "expires"):
         table.add_column(c)
     for r in sorted(rows, key=lambda x: x["created_at"], reverse=True):
         if r["status"] != "active":
@@ -495,7 +511,7 @@ def _cmd_mine(argv: list[str]) -> int:
             exp = "[red]expired[/red]"
         else:
             exp = f"{(r['expires_at'] - time.time()) / 86400:.0f}d"
-        table.add_row(r["d"], r["side"], r["title"], r["status"], exp)
+        table.add_row(r["d"][:6], r["side"], r["title"], r["status"], exp)
     console.print(table)
     live = sum(1 for r in rows if r["is_live"])
     console.print(f"[dim]{live}/{SOFT_CAP} live listings[/dim]")
