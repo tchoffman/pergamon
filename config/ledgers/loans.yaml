@@ -1,0 +1,33 @@
+# Who has what. One row per loan, in either direction.
+#
+#   pergamon library lend 3 --to npub1... --due 14d
+#   pergamon library return 1 --condition "chain dull"
+#   pergamon library loans [--overdue]
+
+name: loans
+title: Loans
+
+fields:
+  - name: item_id
+    type: integer
+  - name: title
+    type: text
+    required: true
+  - name: counterparty
+    type: text
+    required: true
+  - name: direction
+    type: enum
+    options: [lent_out, borrowed]
+    required: true
+  - name: loaned_at
+    type: date
+    required: true
+  - name: due_at
+    type: date
+  - name: returned_at
+    type: date
+  - name: condition_change
+    type: text
+  - name: notes
+    type: text

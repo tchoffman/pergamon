@@ -1,0 +1,45 @@
+# Things you own and might lend or seed: books, tools, digital files, seeds, media.
+#
+#   pergamon library add title="Where There Is No Doctor" type=book lendable=yes
+#   pergamon library add title="Stihl MS 250" type=tool serial=1234 lendable=yes \
+#       required_skill="experienced operator" usage_limits="return with full tank"
+#
+# Only title, type, and creator are published in your catalog (pergamon library
+# publish). Location, serial, notes, and deposit stay on this machine.
+
+name: library
+title: Library
+
+fields:
+  - name: title
+    type: text
+    required: true
+  - name: type
+    type: enum
+    options: [book, tool, digital, seed, media, other]
+    required: true
+  - name: creator
+    type: text
+  - name: isbn
+    type: text
+  - name: location
+    type: text
+  - name: condition
+    type: enum
+    options: [new, good, worn, needs_repair]
+  - name: lendable
+    type: bool
+  - name: seedable
+    type: bool
+  - name: source
+    type: text
+  - name: serial
+    type: text
+  - name: required_skill
+    type: text
+  - name: usage_limits
+    type: text
+  - name: deposit_oz_ag
+    type: number
+  - name: notes
+    type: text

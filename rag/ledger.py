@@ -174,6 +174,31 @@ def add_row(name: str, values: dict) -> int:
     return cur.lastrowid
 
 
+def update_row(name: str, row_id: int, values: dict) -> bool:
+    """Set fields on an existing row. Values are coerced like add_row."""
+    schema = _load_schema(name)
+    conn = _open_db(schema)
+    field_map = {f["name"]: f for f in schema["fields"]}
+    row: dict = {}
+    for k, v in values.items():
+        if k not in field_map:
+            raise ValueError(f"unknown field {k!r} in ledger {name!r}")
+        row[k] = _coerce(field_map[k], v) if isinstance(v, str) else v
+    if not row:
+        return False
+    row["updated"] = datetime.now().isoformat(timespec="seconds")
+    assignments = ", ".join(f"{k} = ?" for k in row)
+    cur = conn.execute(f"UPDATE {name} SET {assignments} WHERE id = ?",
+                       [*row.values(), row_id])
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def get_row(name: str, row_id: int) -> dict | None:
+    rows = query_rows(name, [f"id={row_id}"])
+    return rows[0] if rows else None
+
+
 def remove_row(name: str, row_id: int) -> bool:
     schema = _load_schema(name)
     conn = _open_db(schema)
@@ -273,6 +298,16 @@ def main(argv: list[str]) -> int:
             console.print(f"[red]error:[/red] {e}")
             return 1
         return 0
+
+    if cmd == "set" and len(argv) >= 4:
+        try:
+            ok = update_row(argv[1], int(argv[2]), _parse_kv(argv[3:]))
+        except Exception as e:
+            console.print(f"[red]error:[/red] {e}")
+            return 1
+        console.print(f"[green]updated[/green] {argv[1]}#{argv[2]}" if ok
+                      else f"[yellow]no row {argv[2]}[/yellow]")
+        return 0 if ok else 1
 
     if cmd == "rm" and len(argv) == 3:
         name, row_id = argv[1], int(argv[2])
