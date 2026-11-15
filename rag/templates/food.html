@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pergamon · Food</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Pergamon</h1>
+    <nav class="status">
+      <a href="/">Ask</a><span>·</span>
+      <a href="/food" class="muted">Food</a><span>·</span>
+      <a href="/board">Board</a><span>·</span>
+      <a href="/classifieds">Classifieds</a>
+    </nav>
+  </header>
+
+  <main>
+    <p class="muted small">Your household's food on hand. Stays on this machine — never shared.</p>
+
+    <section>
+      <h2>Use soon</h2>
+      <div id="soon"><p class="muted">Loading…</p></div>
+      <button id="cookBtn" type="button">What can I cook?</button>
+      <div id="cookOut" class="hidden" style="white-space:pre-wrap;margin-top:0.75rem"></div>
+    </section>
+
+    <section>
+      <h2>Add food</h2>
+      <form id="addForm">
+        <div class="row"><label for="f_item">Item</label><input id="f_item" required placeholder="brown rice" /></div>
+        <div class="row"><label for="f_qty">Quantity</label><input id="f_qty" type="number" step="any" min="0" /></div>
+        <div class="row"><label for="f_unit">Unit</label><input id="f_unit" placeholder="lb, jars, dozen" /></div>
+        <div class="row"><label for="f_loc">Where</label>
+          <select id="f_loc"><option value="">—</option>
+            {% for l in locations %}<option value="{{ l }}">{{ l.replace("_", " ") }}</option>{% endfor %}</select></div>
+        <div class="row"><label for="f_exp">Use by</label><input id="f_exp" type="date" /></div>
+        <div class="row"><label for="f_notes">Notes</label><input id="f_notes" placeholder="home canned 2026, from Rosa" /></div>
+        <button type="submit">Add</button>
+      </form>
+      <div id="addResult" class="muted"></div>
+    </section>
+
+    <section>
+      <h2>Everything</h2>
+      <form id="filterForm">
+        <select id="loc"><option value="">All locations</option>
+          {% for l in locations %}<option value="{{ l }}">{{ l.replace("_", " ") }}</option>{% endfor %}</select>
+        <input id="q" placeholder="search" />
+        <button type="submit">Show</button>
+      </form>
+      <div id="items"></div>
+    </section>
+  </main>
+
+  <footer><span class="muted">Offline library · everything runs locally.</span></footer>
+
+  <script>
+    const SOON = {{ soon_days }};
+    const el = (tag, cls, text) => {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text !== undefined) n.textContent = text;
+      return n;
+    };
+    const api = async (url, opts = {}) => {
+      const r = await fetch(url, Object.assign({ headers: { "Content-Type": "application/json" } }, opts));
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.detail || r.statusText);
+      return data;
+    };
+
+    function when(it) {
+      if (it.days_left === null) return "";
+      if (it.days_left < 0) return `expired ${-it.days_left}d ago`;
+      if (it.days_left === 0) return "use today";
+      return `use within ${it.days_left}d`;
+    }
+
+    function row(it) {
+      const c = el("div", "listing");
+      const head = el("div", "listing-head");
+      if (it.days_left !== null && it.days_left <= SOON)
+        head.appendChild(el("span", "badge want", it.days_left < 0 ? "EXPIRED" : "USE SOON"));
+      head.appendChild(el("strong", "", " " + it.item));
+      c.appendChild(head);
+      const meta = [it.qty !== null ? `${it.qty} ${it.unit || ""}`.trim() : "",
+                    (it.location || "").replace("_", " "), when(it), it.notes].filter(Boolean);
+      c.appendChild(el("div", "muted small", meta.join(" · ")));
+      const actions = el("div", "actions");
+      const minus = el("button", "small-btn secondary", "−1");
+      minus.onclick = () => adjust(it, -1);
+      const plus = el("button", "small-btn secondary", "+1");
+      plus.onclick = () => adjust(it, +1);
+      const gone = el("button", "small-btn secondary", "Used up");
+      gone.onclick = async () => { if (confirm(`Remove ${it.item}?`)) { await api(`/api/food/${it.id}`, { method: "DELETE" }); load(); } };
+      actions.append(minus, plus, gone);
+      c.appendChild(actions);
+      return c;
+    }
+
+    async function adjust(it, delta) {
+      const qty = Math.max(0, (it.qty || 0) + delta);
+      await api(`/api/food/${it.id}`, { method: "POST", body: JSON.stringify({ qty }) });
+      load();
+    }
+
+    async function load() {
+      const params = new URLSearchParams({ location: document.getElementById("loc").value,
+                                           q: document.getElementById("q").value });
+      const data = await api("/api/food?" + params);
+      const soon = document.getElementById("soon");
+      soon.innerHTML = "";
+      if (!data.soon.length) soon.appendChild(el("p", "muted", "Nothing expiring in the next " + SOON + " days."));
+      data.soon.forEach(it => soon.appendChild(row(it)));
+      const all = document.getElementById("items");
+      all.innerHTML = "";
+      if (!data.items.length) all.appendChild(el("p", "muted", "No food recorded yet."));
+      data.items.forEach(it => all.appendChild(row(it)));
+    }
+
+    document.getElementById("filterForm").addEventListener("submit", e => { e.preventDefault(); load(); });
+
+    const addForm = document.getElementById("addForm");
+    addForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const v = (id) => document.getElementById(id).value;
+      try {
+        await api("/api/food", { method: "POST", body: JSON.stringify({
+          item: v("f_item"), qty: v("f_qty"), unit: v("f_unit"), location: v("f_loc"),
+          expires: v("f_exp"), notes: v("f_notes") }) });
+        document.getElementById("addResult").textContent = "added " + v("f_item");
+        addForm.reset();
+        load();
+      } catch (err) {
+        document.getElementById("addResult").textContent = "error: " + err.message;
+      }
+    });
+
+    document.getElementById("cookBtn").addEventListener("click", async () => {
+      const out = document.getElementById("cookOut");
+      out.classList.remove("hidden");
+      out.textContent = "thinking…";
+      const es = new EventSource("/api/food/cook");
+      let started = false;
+      es.addEventListener("token", ev => {
+        if (!started) { out.textContent = ""; started = true; }
+        out.textContent += ev.data;
+      });
+      es.addEventListener("done", () => es.close());
+      es.onerror = () => {
+        es.close();
+        if (!started) out.textContent = "Couldn't get suggestions — is your pantry empty, or is the LLM running?";
+      };
+    });
+
+    load();
+  </script>
+</body>
+</html>

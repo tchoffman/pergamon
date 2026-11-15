@@ -103,13 +103,13 @@ def status():
     return _status()
 
 
-def _stream_rag(q: str, system: str, user_prefix: str):
+def _stream_rag(q: str, system: str, user_prefix: str, use_domain_guards: bool = True):
     """Shared SSE generator for ask / plan. `user_prefix` labels the user slot
     (QUESTION or GOAL) so the LLM reads the prompt correctly."""
     cfg = load_config()
     hits = retrieve(cfg, q)
 
-    guarded_system, domains = guard(q, system)
+    guarded_system, domains = guard(q, system) if use_domain_guards else (system, [])
 
     async def event_gen():
         for d in domains:
@@ -850,3 +850,132 @@ def forms_page(request: Request):
     so a future scanner can route slips automatically."""
     qr = {k: _cards.qr_svg(f"pergamon-form:{k}:v1", scale=2) for k in FORM_KINDS}
     return templates.TemplateResponse(request, "forms.html", {"qr": qr})
+
+
+# ─────────────────────────────── food inventory ───────────────────────────────
+# Household-private: stored in the food ledger on this machine, never published.
+
+from datetime import date as _date  # noqa: E402
+
+from rag import ledger as _lg  # noqa: E402
+
+SOON_DAYS = 7
+COOK_PROMPT = """You are Pergamon's kitchen helper. The user lists what's in their pantry,
+with items that expire soonest first. Suggest 3 practical meals they can make mostly from
+these ingredients, preferring the items marked USE SOON. For each: name, ingredients from
+the list (and any common staples assumed), and short steps. Flag any food-safety concern
+(e.g. items past their date, home-canned goods with bulging lids). Use CONTEXT recipes if
+relevant and cite them. Be concise."""
+
+
+def _food_allowed(request: Request) -> None:
+    """Food data is household-private. Allow it from this machine only, unless
+    install.local.yaml sets food: {lan_access: true} (fine on a home network,
+    not on a community hub)."""
+    host = request.client.host if request.client else ""
+    if host in ("127.0.0.1", "::1", "localhost", "testclient"):
+        return
+    from rag.install_config import INSTALL_LOCAL_PATH, load_yaml
+    cfg = load_yaml(INSTALL_LOCAL_PATH) if INSTALL_LOCAL_PATH.exists() else {}
+    if ((cfg.get("food") or {}).get("lan_access")) is True:
+        return
+    raise HTTPException(403, "The food inventory is only available on this machine. "
+                             "To use it from household phones, set food: {lan_access: true} "
+                             "in config/install.local.yaml (not on a shared hub).")
+
+
+def _food_rows() -> list[dict]:
+    today = _date.today()
+    rows = _lg.query_rows("food")
+    for r in rows:
+        r["days_left"] = None
+        if r.get("expires"):
+            r["days_left"] = (_date.fromisoformat(r["expires"]) - today).days
+    rows.sort(key=lambda r: (r["days_left"] is None, r["days_left"] if r["days_left"] is not None else 0,
+                             r["item"].lower()))
+    return rows
+
+
+def _food_values(body: dict, partial: bool = False) -> dict:
+    allowed = ("item", "qty", "unit", "location", "barcode", "expires", "notes")
+    vals = {k: str(body[k]).strip() for k in allowed if k in body and body[k] not in (None, "")}
+    if not partial and not vals.get("item"):
+        raise HTTPException(400, "item required")
+    return vals
+
+
+@app.get("/food", response_class=HTMLResponse)
+def food_page(request: Request):
+    _food_allowed(request)
+    schema = _lg._load_schema("food")
+    locations = next(f["options"] for f in schema["fields"] if f["name"] == "location")
+    return templates.TemplateResponse(request, "food.html", {"locations": locations,
+                                                             "soon_days": SOON_DAYS})
+
+
+@app.get("/api/food")
+def api_food(request: Request, location: str | None = None, q: str = ""):
+    _food_allowed(request)
+    rows = _food_rows()
+    if location:
+        rows = [r for r in rows if r.get("location") == location]
+    if q:
+        rows = [r for r in rows if q.lower() in (r["item"] + " " + (r.get("notes") or "")).lower()]
+    soon = [r for r in rows if r["days_left"] is not None and r["days_left"] <= SOON_DAYS]
+    return {"items": rows, "soon": soon}
+
+
+@app.post("/api/food")
+def api_food_add(request: Request, body: dict):
+    _food_allowed(request)
+    try:
+        rid = _lg.add_row("food", _food_values(body))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"id": rid}
+
+
+@app.post("/api/food/{row_id}")
+def api_food_update(request: Request, row_id: int, body: dict):
+    _food_allowed(request)
+    try:
+        ok = _lg.update_row("food", row_id, _food_values(body, partial=True))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if not ok:
+        raise HTTPException(404, "no such item")
+    return {"ok": True}
+
+
+@app.delete("/api/food/{row_id}")
+def api_food_delete(request: Request, row_id: int):
+    _food_allowed(request)
+    if not _lg.remove_row("food", row_id):
+        raise HTTPException(404, "no such item")
+    return {"ok": True}
+
+
+def pantry_text(rows: list[dict]) -> str:
+    lines = []
+    for r in rows:
+        if r.get("qty") is not None and float(r["qty"]) <= 0:
+            continue
+        amount = " ".join(x for x in (f"{r['qty']:g}" if r.get("qty") is not None else "",
+                                      r.get("unit") or "") if x)
+        flag = ""
+        if r["days_left"] is not None:
+            flag = " (EXPIRED)" if r["days_left"] < 0 else (
+                " (USE SOON)" if r["days_left"] <= SOON_DAYS else "")
+        lines.append(f"- {r['item']}{' — ' + amount if amount else ''}{flag}")
+    return "\n".join(lines)
+
+
+@app.get("/api/food/cook")
+async def api_food_cook(request: Request):
+    _food_allowed(request)
+    text = pantry_text(_food_rows())
+    if not text:
+        raise HTTPException(400, "your pantry is empty — add some items first")
+    # Pantry items are bought or stored food, not wild finds; COOK_PROMPT carries
+    # its own food-safety rules, so skip the foraging guard here.
+    return _stream_rag(text, COOK_PROMPT, "PANTRY", use_domain_guards=False)

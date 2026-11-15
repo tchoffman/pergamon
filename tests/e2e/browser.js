@@ -119,6 +119,22 @@ async function person(browser, name) {
     const rep = await b.waitForFunction(() => document.body.textContent.includes("confirmed trade"), { timeout: 10000 }).then(() => true).catch(() => false);
     check("reputation line rendered on a card", rep);
 
+    // Food inventory (household-private; localhost is allowed)
+    await p.goto(BASE + "/food", { waitUntil: "networkidle0" });
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    await p.type("#f_item", "Goat milk");
+    await p.type("#f_qty", "2");
+    await p.type("#f_unit", "qt");
+    await p.select("#f_loc", "fridge");
+    await p.$eval("#f_exp", (n, v) => { n.value = v; }, tomorrow);
+    await p.click("#addForm button");
+    await p.waitForFunction(() => document.getElementById("soon").textContent.includes("Goat milk"), { timeout: 10000 });
+    check("food item expiring tomorrow shows under Use soon", true);
+    const minus = await p.$("#soon .actions button");
+    await minus.click();
+    await p.waitForFunction(() => document.getElementById("soon").textContent.includes("1 qt"), { timeout: 10000 });
+    check("−1 updates the quantity", true);
+
     // Import the backup on a fresh "device"
     const ctx3 = await browser.createBrowserContext();
     const p3 = await ctx3.newPage();
