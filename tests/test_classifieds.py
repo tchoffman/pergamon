@@ -104,3 +104,101 @@ def test_build_listing_round_trips_sign_and_verify():
     )
     sign_event(ev, nsec)
     assert verify_event(ev)
+
+
+# ─────────────────────── freshness / replaceable ─────────────────────
+
+import time as _time
+
+from rag import classifieds as _c
+from rag.classifieds import is_live, latest_per_listing, search_infos
+
+
+def test_build_sets_side_and_expiry():
+    ev = build_listing_event(_pub(), "x", "y", side="looking-for", ttl_days=7)
+    info = summarize(ev)
+    assert info["side"] == "looking-for"
+    assert 6.9 * 86400 < info["expires_at"] - _time.time() < 7.1 * 86400
+    assert info["is_live"] is True
+
+
+def test_bad_side_rejected():
+    with pytest.raises(ValueError):
+        build_listing_event(_pub(), "x", "y", side="maybe")
+
+
+def test_expired_listing_not_live():
+    ev = build_listing_event(_pub(), "x", "y", ttl_days=-1)
+    assert summarize(ev)["is_live"] is False
+
+
+def test_sold_listing_not_live():
+    ev = build_listing_event(_pub(), "x", "y", status="sold")
+    assert summarize(ev)["is_live"] is False
+
+
+def test_legacy_listing_without_expiry_uses_default_ttl():
+    info = {"status": "active", "expires_at": None,
+            "created_at": _time.time() - 30 * 86400}
+    assert is_live(info) is False
+
+
+def test_latest_per_listing_keeps_newest_version():
+    pub = _pub()
+    old = build_listing_event(pub, "apples", "v1", listing_id="abc")
+    old.created_at = 1000
+    new = build_listing_event(pub, "apples", "v2", listing_id="abc")
+    new.created_at = 2000
+    other = build_listing_event(pub, "pears", "p", listing_id="zzz")
+    kept = latest_per_listing([old, new, other])
+    contents = sorted(e.content for e in kept)
+    assert contents == ["p", "v2"]
+
+
+def test_search_infos_filters_side_and_text():
+    pub = _pub()
+    evs = [
+        build_listing_event(pub, "Honey", "raw", side="offering"),
+        build_listing_event(pub, "Honey wanted", "any", side="looking-for"),
+        build_listing_event(pub, "Firewood", "oak"),
+    ]
+    assert [i["title"] for i in search_infos(evs, "honey", side="looking-for")] == ["Honey wanted"]
+    assert len(search_infos(evs, "honey")) == 2
+
+
+def test_republish_renews_same_d(tmp_path, monkeypatch):
+    monkeypatch.setattr(_c, "MINE_PATH", tmp_path / "mine.json")
+    nsec, _, pub = generate_keypair()
+    ev = build_listing_event(pub, "x", "y", listing_id="keep-me", ttl_days=-1)
+    sign_event(ev, nsec)
+    _c._remember(ev)
+    fresh = _c.republish("keep-me", nsec)
+    info = summarize(fresh)
+    assert info["d"] == "keep-me"
+    assert info["is_live"] is True
+    assert verify_event(fresh)
+
+
+def test_republish_close_marks_sold(tmp_path, monkeypatch):
+    monkeypatch.setattr(_c, "MINE_PATH", tmp_path / "mine.json")
+    nsec, _, pub = generate_keypair()
+    ev = build_listing_event(pub, "x", "y", listing_id="sell-me")
+    sign_event(ev, nsec)
+    _c._remember(ev)
+    closed = _c.republish("sell-me", nsec, status="sold")
+    assert summarize(closed)["status"] == "sold"
+
+
+def test_soft_cap(tmp_path, monkeypatch):
+    monkeypatch.setattr(_c, "MINE_PATH", tmp_path / "mine.json")
+    monkeypatch.setattr(_c, "publish", lambda ev, relays: {})
+    nsec, _, pub = generate_keypair()
+
+    class _Ident:
+        hex_pub = pub
+
+    for n in range(_c.SOFT_CAP):
+        _c.post_listing(_Ident, nsec, title=f"item {n}", description="")
+    with pytest.raises(_c.SoftCapExceeded):
+        _c.post_listing(_Ident, nsec, title="one too many", description="")
+    _c.post_listing(_Ident, nsec, force=True, title="forced", description="")

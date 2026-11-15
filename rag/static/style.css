@@ -243,3 +243,27 @@ nav.status a { color: var(--accent); text-decoration: none; }
 nav.status a:hover { text-decoration: underline; }
 
 #pubResult { margin-top: 0.75rem; font-size: 0.9rem; }
+
+/* Classifieds */
+
+.listing {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.listing p { margin: 0.4rem 0; }
+.listing-head { margin-bottom: 0.25rem; }
+.badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+}
+.badge.offer { background: var(--accent-soft); color: var(--accent); }
+.badge.want { background: var(--warn-bg); color: var(--warn-fg); }
+.small { font-size: 0.8rem; }
+.actions { margin-top: 0.5rem; display: flex; gap: 0.5rem; }
+.small-btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+.small-btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }

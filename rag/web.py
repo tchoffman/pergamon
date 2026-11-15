@@ -272,3 +272,100 @@ def search_endpoint(q: str, k: int = 6):
             for h in hits
         ]
     }
+
+
+# ─────────────────────────────── classifieds ───────────────────────────────
+# Sync endpoints on purpose: FastAPI runs them in a worker thread, so the
+# blocking relay helpers (which use asyncio.run) are safe to call.
+
+from rag import classifieds as _cl  # noqa: E402
+
+
+@app.get("/classifieds", response_class=HTMLResponse)
+def classifieds_page(request: Request):
+    active = get_active()
+    return templates.TemplateResponse(
+        request, "classifieds.html",
+        {"active": active.meta() if active else None, "soft_cap": _cl.SOFT_CAP},
+    )
+
+
+@app.get("/api/classifieds")
+def api_classifieds(q: str = "", side: str | None = None, tag: str | None = None,
+                    all: bool = False, limit: int = 100):
+    relays = _load_relays_from_config()
+    events = _cl.fetch_listings(relays, tag=tag or None, limit=limit, live_only=not all)
+    return {"listings": _cl.search_infos(events, query=q, side=side or None),
+            "relays": relays}
+
+
+@app.get("/api/classifieds/mine")
+def api_classifieds_mine():
+    ident = get_active()
+    if not ident:
+        raise HTTPException(400, "no active identity")
+    rows = [_cl.summarize(_cl._event_from_json(r)) for r in _cl._load_mine().values()
+            if r["pubkey"] == ident.hex_pub]
+    rows.sort(key=lambda r: r["created_at"], reverse=True)
+    return {"listings": rows, "live": sum(r["is_live"] for r in rows),
+            "soft_cap": _cl.SOFT_CAP}
+
+
+def _num(v):
+    return float(v) if v not in (None, "") else None
+
+
+@app.post("/api/classifieds")
+def api_classifieds_post(body: dict):
+    ident = get_active()
+    if not ident:
+        raise HTTPException(400, "no active identity — create one on /identity")
+    title = (body.get("title") or "").strip()
+    if not title:
+        raise HTTPException(400, "title required")
+    side = body.get("side") or "offering"
+    if side not in _cl.SIDES:
+        raise HTTPException(400, f"side must be one of {_cl.SIDES}")
+    accepts = body.get("accepts") or []
+    if isinstance(accepts, str):
+        accepts = [a.strip() for a in accepts.split(",") if a.strip()]
+    tags = body.get("hashtags") or []
+    if isinstance(tags, str):
+        tags = [t.strip().lstrip("#") for t in tags.split(",") if t.strip()]
+    try:
+        ev, results = _cl.post_listing(
+            ident, load_nsec(ident.name), force=bool(body.get("force")),
+            title=title, description=(body.get("description") or "").strip(),
+            side=side, price_oz_ag=_num(body.get("price_oz_ag")),
+            price_usd=_num(body.get("price_usd")), accepts=accepts or None,
+            location=(body.get("location") or None), qty=(body.get("qty") or None),
+            hashtags=tags, ttl_days=_num(body.get("ttl_days")) or _cl.DEFAULT_TTL_DAYS,
+        )
+    except _cl.SoftCapExceeded as e:
+        raise HTTPException(409, str(e))
+    return {"listing": _cl.summarize(ev),
+            "published_to": {u: {"ok": ok, "message": m} for u, (ok, m) in results.items()}}
+
+
+def _republish(d: str, status: str | None):
+    ident = get_active()
+    if not ident:
+        raise HTTPException(400, "no active identity")
+    try:
+        ev = _cl.republish(d, load_nsec(ident.name), status=status)
+    except KeyError:
+        raise HTTPException(404, f"no local listing {d}")
+    results = _cl.publish(ev, _load_relays_from_config())
+    _cl._remember(ev)
+    return {"listing": _cl.summarize(ev),
+            "published_to": {u: {"ok": ok, "message": m} for u, (ok, m) in results.items()}}
+
+
+@app.post("/api/classifieds/{d}/renew")
+def api_classifieds_renew(d: str):
+    return _republish(d, None)
+
+
+@app.post("/api/classifieds/{d}/close")
+def api_classifieds_close(d: str):
+    return _republish(d, "sold")

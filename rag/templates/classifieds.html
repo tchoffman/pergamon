@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pergamon · Classifieds</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Pergamon</h1>
+    <nav class="status">
+      <a href="/">Ask</a><span>·</span>
+      <a href="/classifieds" class="muted">Classifieds</a><span>·</span>
+      <a href="/identity">Identity</a>
+    </nav>
+  </header>
+
+  <main>
+    <section>
+      <form id="filterForm">
+        <select id="side" aria-label="side">
+          <option value="">All</option>
+          <option value="offering">Offers</option>
+          <option value="looking-for">Wanted</option>
+        </select>
+        <input id="q" type="text" placeholder="Search listings…" autocomplete="off" />
+        <button type="submit">Search</button>
+      </form>
+      <div id="listings"><p class="muted">Loading…</p></div>
+    </section>
+
+    {% if active %}
+    <section>
+      <h2>Post a listing</h2>
+      <p class="muted">Posting as <strong>{{ active.name }}</strong>. Listings expire after
+        14 days unless renewed — keeping them fresh is what makes you reliable.</p>
+      <form id="postForm">
+        <div class="row">
+          <label for="p_side">Type</label>
+          <select id="p_side">
+            <option value="offering">I have this (offer)</option>
+            <option value="looking-for">I need this (wanted)</option>
+          </select>
+        </div>
+        <div class="row"><label for="p_title">Title</label><input id="p_title" required /></div>
+        <div class="row"><label for="p_desc">Description</label><textarea id="p_desc" rows="3"></textarea></div>
+        <div class="row"><label for="p_qty">Quantity</label><input id="p_qty" placeholder="20 lb, 1 cord, 3 dozen" /></div>
+        <div class="row"><label for="p_ag">Price (oz silver)</label><input id="p_ag" type="number" step="0.01" min="0" /></div>
+        <div class="row"><label for="p_usd">Price (USD)</label><input id="p_usd" type="number" step="0.01" min="0" /></div>
+        <div class="row"><label for="p_accepts">Accepts (comma-separated)</label><input id="p_accepts" placeholder="silver, barter, labor" /></div>
+        <div class="row"><label for="p_loc">Location</label><input id="p_loc" /></div>
+        <div class="row"><label for="p_tags">Tags (comma-separated)</label><input id="p_tags" placeholder="eggs, poultry" /></div>
+        <button type="submit">Post</button>
+      </form>
+      <div id="postResult" class="muted"></div>
+    </section>
+
+    <section>
+      <h2>My listings</h2>
+      <div id="mine"><p class="muted">Loading…</p></div>
+    </section>
+    {% else %}
+    <p class="warn">Create an identity on the <a href="/identity">Identity</a> page to post.</p>
+    {% endif %}
+  </main>
+
+  <footer><span class="muted">Offline library · everything runs locally.</span></footer>
+
+  <script>
+    const el = (tag, cls, text) => {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text !== undefined) n.textContent = text;
+      return n;
+    };
+
+    function priceText(l) {
+      const parts = [];
+      if (l.price_oz_ag != null) parts.push(l.price_oz_ag + " oz Ag");
+      if (l.price_usd != null) parts.push("$" + l.price_usd);
+      return parts.length ? parts.join(" · ") : "barter / offer";
+    }
+
+    function daysLeft(l) {
+      if (!l.expires_at) return "";
+      const d = Math.round((l.expires_at * 1000 - Date.now()) / 86400000);
+      return d > 0 ? `expires in ${d}d` : "expired";
+    }
+
+    function card(l) {
+      const c = el("div", "listing");
+      const head = el("div", "listing-head");
+      head.appendChild(el("span", l.side === "looking-for" ? "badge want" : "badge offer",
+                          l.side === "looking-for" ? "WANTED" : "OFFER"));
+      head.appendChild(el("strong", "", " " + l.title));
+      c.appendChild(head);
+      c.appendChild(el("div", "muted", [priceText(l), l.qty, l.location].filter(Boolean).join(" · ")));
+      if (l.description) c.appendChild(el("p", "", l.description));
+      const meta = [];
+      if (l.accepts && l.accepts.length) meta.push("accepts: " + l.accepts.join(", "));
+      if (l.hashtags && l.hashtags.length) meta.push(l.hashtags.map(t => "#" + t).join(" "));
+      meta.push(daysLeft(l));
+      meta.push("from " + l.pubkey.slice(0, 12) + "…");
+      c.appendChild(el("div", "muted small", meta.filter(Boolean).join("  ·  ")));
+      return c;
+    }
+
+    async function loadListings() {
+      const box = document.getElementById("listings");
+      const params = new URLSearchParams({
+        q: document.getElementById("q").value,
+        side: document.getElementById("side").value,
+      });
+      try {
+        const r = await fetch("/api/classifieds?" + params);
+        const data = await r.json();
+        box.innerHTML = "";
+        if (!data.listings.length) {
+          box.appendChild(el("p", "muted", "No live listings. Relays: " + data.relays.join(", ")));
+          return;
+        }
+        data.listings.forEach(l => box.appendChild(card(l)));
+      } catch (e) {
+        box.innerHTML = "";
+        box.appendChild(el("p", "warn", "Could not reach relays: " + e));
+      }
+    }
+
+    async function loadMine() {
+      const box = document.getElementById("mine");
+      if (!box) return;
+      const r = await fetch("/api/classifieds/mine");
+      if (!r.ok) { box.textContent = ""; return; }
+      const data = await r.json();
+      box.innerHTML = "";
+      box.appendChild(el("p", "muted", `${data.live}/${data.soft_cap} live listings`));
+      data.listings.forEach(l => {
+        const c = card(l);
+        const actions = el("div", "actions");
+        if (l.status === "active") {
+          const renew = el("button", "small-btn", "Renew 14d");
+          renew.onclick = () => act(l.d, "renew");
+          const close = el("button", "small-btn secondary", "Mark sold / done");
+          close.onclick = () => act(l.d, "close");
+          actions.append(renew, close);
+        } else {
+          actions.appendChild(el("span", "muted", l.status));
+        }
+        c.appendChild(actions);
+        box.appendChild(c);
+      });
+    }
+
+    async function act(d, what) {
+      const r = await fetch(`/api/classifieds/${encodeURIComponent(d)}/${what}`, {method: "POST"});
+      if (!r.ok) alert((await r.json()).detail || r.statusText);
+      loadMine(); loadListings();
+    }
+
+    document.getElementById("filterForm").addEventListener("submit", e => {
+      e.preventDefault(); loadListings();
+    });
+
+    const postForm = document.getElementById("postForm");
+    if (postForm) {
+      postForm.addEventListener("submit", async e => {
+        e.preventDefault();
+        const out = document.getElementById("postResult");
+        out.textContent = "posting…";
+        const body = {
+          side: document.getElementById("p_side").value,
+          title: document.getElementById("p_title").value,
+          description: document.getElementById("p_desc").value,
+          qty: document.getElementById("p_qty").value,
+          price_oz_ag: document.getElementById("p_ag").value,
+          price_usd: document.getElementById("p_usd").value,
+          accepts: document.getElementById("p_accepts").value,
+          location: document.getElementById("p_loc").value,
+          hashtags: document.getElementById("p_tags").value,
+        };
+        let r = await fetch("/api/classifieds", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(body),
+        });
+        if (r.status === 409) {
+          const msg = (await r.json()).detail;
+          if (!confirm(msg + "\n\nPost anyway?")) { out.textContent = "not posted"; return; }
+          body.force = true;
+          r = await fetch("/api/classifieds", {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(body),
+          });
+        }
+        const data = await r.json();
+        if (!r.ok) { out.textContent = "error: " + (data.detail || r.statusText); return; }
+        const pub = Object.entries(data.published_to)
+          .map(([u, v]) => `${v.ok ? "✓" : "✗"} ${u}`).join("  ");
+        out.textContent = "posted. " + pub;
+        postForm.reset();
+        loadMine(); loadListings();
+      });
+    }
+
+    loadListings();
+    loadMine();
+  </script>
+</body>
+</html>
