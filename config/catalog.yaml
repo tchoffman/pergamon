@@ -444,6 +444,34 @@ items:
     size_mb_by_variant:
       default: 4
 
+  # ── Foraging + plant / mushroom identification ─────────────────────
+  # Public-domain field guides (US), verified on Project Gutenberg. The
+  # mushroom guides date from c.1880–1920: some species they call edible
+  # are now known to be toxic. The foraging safety rules (config/domains/
+  # foraging.yaml) tell the model never to rely on them for edibility.
+  - id: foraging-shelf
+    title: Foraging + plant/mushroom field guides (public domain)
+    shelf: foraging
+    fetcher: gutenberg
+    description: 12 classic field guides — mushrooms, wild flowers, poisonous and medicinal plants.
+    gutenberg_ids:
+      - {id: 26492, slug: atkinson-studies-of-american-fungi}
+      - {id: 51393, slug: mcilvaine-one-thousand-american-fungi}
+      - {id: 29086, slug: hard-mushroom-edible-and-otherwise}
+      - {id: 32982, slug: taylor-mushrooms-of-america}
+      - {id: 46514, slug: gibson-edible-toadstools-and-mushrooms}
+      - {id: 60159, slug: watling-identification-of-larger-fungi}
+      - {id: 71397, slug: youngken-poisonous-plants-new-england}
+      - {id: 63788, slug: long-plants-poisonous-to-livestock}
+      - {id: 76922, slug: henkel-weeds-used-in-medicine}
+      - {id: 49513, slug: culpeper-complete-herbal}
+      - {id: 47971, slug: armstrong-western-wild-flowers}
+      - {id: 8866, slug: blanchan-wild-flowers-worth-knowing}
+    options: []
+    defaults: {}
+    size_mb_by_variant:
+      default: 12
+
   # ── Maps ────────────────────────────────────────────────────────────
   - id: osm-regional
     title: OpenStreetMap regional packs (OsmAnd format)

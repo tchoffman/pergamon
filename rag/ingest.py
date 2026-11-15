@@ -1,4 +1,4 @@
-"""Ingest PDFs under build/corpus/pdfs/ into a persistent Chroma collection.
+"""Ingest PDFs (build/corpus/pdfs) and plain-text books (build/corpus/books) into Chroma.
 
 Idempotent: re-running skips chunks whose (source_path, chunk_index) is already present.
 Embeddings are computed via Ollama's embed endpoint.
@@ -6,6 +6,7 @@ Embeddings are computed via Ollama's embed endpoint.
 from __future__ import annotations
 
 import hashlib
+import re
 import sys
 from pathlib import Path
 from typing import Iterator
@@ -58,6 +59,34 @@ def chunk_id(source: str, idx: int) -> str:
     return f"{Path(source).stem}-{idx:04d}-{h}"
 
 
+_PG_START = re.compile(r"^\*\*\* ?START OF (THE|THIS) PROJECT GUTENBERG EBOOK.*$", re.I | re.M)
+_PG_END = re.compile(r"^\*\*\* ?END OF (THE|THIS) PROJECT GUTENBERG EBOOK.*$", re.I | re.M)
+
+
+def extract_txt(path: Path) -> str:
+    """Plain-text book; drops the Project Gutenberg license header/footer."""
+    text = path.read_text(encoding="utf-8", errors="replace")
+    start = _PG_START.search(text)
+    if start:
+        text = text[start.end():]
+    end = _PG_END.search(text)
+    if end:
+        text = text[:end.start()]
+    return text.strip()
+
+
+def corpus_documents() -> list[tuple[Path, callable]]:
+    """Every indexable document: PDFs and plain-text books."""
+    docs: list[tuple[Path, callable]] = []
+    pdf_dir = REPO_ROOT / "build" / "corpus" / "pdfs"
+    book_dir = REPO_ROOT / "build" / "corpus" / "books"
+    if pdf_dir.exists():
+        docs += [(p, extract_pdf) for p in sorted(pdf_dir.glob("*.pdf"))]
+    if book_dir.exists():
+        docs += [(p, extract_txt) for p in sorted(book_dir.glob("*.txt"))]
+    return docs
+
+
 def embed(client: ollama.Client, model: str, text: str) -> list[float]:
     resp = client.embeddings(model=model, prompt=text)
     return resp["embedding"]
@@ -65,17 +94,11 @@ def embed(client: ollama.Client, model: str, text: str) -> list[float]:
 
 def main() -> int:
     cfg = load_config()
-    pdf_dir = REPO_ROOT / "build" / "corpus" / "pdfs"
-    if not pdf_dir.exists():
-        console.print(f"[red]No corpus at {pdf_dir}. Run `make corpus` first.[/red]")
-        return 1
-
-    pdfs = sorted(pdf_dir.glob("*.pdf"))
-    if not pdfs:
-        console.print(f"[yellow]No PDFs found under {pdf_dir}. Nothing to index.[/yellow]")
+    docs = corpus_documents()
+    if not docs:
+        console.print("[yellow]No PDFs or books under build/corpus. Run `make corpus` first.[/yellow]")
         return 0
-
-    console.print(f"Found [bold]{len(pdfs)}[/bold] PDF(s) under {pdf_dir}")
+    console.print(f"Found [bold]{len(docs)}[/bold] document(s) under build/corpus")
 
     client_chroma = chromadb.PersistentClient(path=cfg["chroma_dir"])
     coll = client_chroma.get_or_create_collection(cfg["chroma_collection"])
@@ -92,8 +115,8 @@ def main() -> int:
         TimeRemainingColumn(),
         console=console,
     ) as progress:
-        for pdf in pdfs:
-            text = extract_pdf(pdf)
+        for pdf, extract in docs:
+            text = extract(pdf)
             if not text.strip():
                 console.print(f"[yellow]skip[/yellow] {pdf.name}: no extractable text")
                 continue

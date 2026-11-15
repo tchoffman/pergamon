@@ -31,3 +31,6 @@ system_prompt_tail: |
   - Tell the user to confirm identification in person with an experienced
     forager or a physical regional field guide before eating anything.
   - Many fatal poisonings have delayed symptoms; say so when relevant.
+  - Field guides older than about 1950 (much of this library) list some species
+    as edible that are now known to be toxic. Never repeat an old guide's
+    edibility claim as current fact; say the source is old.

@@ -3,6 +3,7 @@
 #
 # Env vars:
 #   GUTENBERG_TOP_N  — number of books to fetch (100 / 500 / 2000 / 10000)
+#   GUTENBERG_IDS    — instead of top-N, a curated list: "29086:mushroom-edible-and-otherwise,..."
 #
 # Approach:
 #   Gutenberg's "Top 100 EBooks yesterday/last 7 days/last 30 days" page lives at
@@ -18,9 +19,18 @@
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 TOP_N="${GUTENBERG_TOP_N:-100}"
-log "fetching top $TOP_N Gutenberg books into $BOOK_DIR"
 
 # Produce a list of (id, slug) pairs for the top N books.
+if [[ -n "${GUTENBERG_IDS:-}" ]]; then
+  log "fetching curated Gutenberg list into $BOOK_DIR"
+  : > /tmp/pergamon-gutenberg-list.tsv
+  IFS=',' read -r -a entries <<< "$GUTENBERG_IDS"
+  for e in "${entries[@]}"; do
+    id="${e%%:*}"; slug="${e#*:}"; [[ "$slug" == "$e" ]] && slug="book$id"
+    printf '%s\t%s\n' "$id" "$slug" >> /tmp/pergamon-gutenberg-list.tsv
+  done
+else
+log "fetching top $TOP_N Gutenberg books into $BOOK_DIR"
 "$PY" - <<PY > /tmp/pergamon-gutenberg-list.tsv
 import urllib.request, re, sys, html
 
@@ -79,6 +89,7 @@ while len(pairs) < want and page_no <= 500:
 for bid, slug in pairs[:want]:
     print(f"{bid}\t{slug}")
 PY
+fi
 
 count=0
 while IFS=$'\t' read -r bid slug; do
@@ -89,8 +100,9 @@ while IFS=$'\t' read -r bid slug; do
     continue
   fi
   # Gutenberg mirrors plain text at /files/<id>/<id>-0.txt (UTF-8) or /files/<id>/<id>.txt.
-  for suffix in "-0" ""; do
-    url="https://www.gutenberg.org/files/${bid}/${bid}${suffix}.txt"
+  for url in "https://www.gutenberg.org/cache/epub/${bid}/pg${bid}.txt" \
+             "https://www.gutenberg.org/files/${bid}/${bid}-0.txt" \
+             "https://www.gutenberg.org/files/${bid}/${bid}.txt"; do
     if curl -sL --fail --retry 2 --max-time 120 -o "$out" "$url"; then
       count=$((count + 1))
       break

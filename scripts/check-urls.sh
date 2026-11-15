@@ -133,10 +133,16 @@ def check(item_id: str, item: dict, fetcher: str, opts: dict):
         rows.append((f"{item_id} (seed)", ok, info))
 
     elif fetcher == "gutenberg":
-        # Validate that Gutenberg's top-100 page is reachable.
-        url = "https://www.gutenberg.org/browse/scores/top"
-        ok, info = head(url)
-        rows.append((f"{item_id} (top-100 index)", ok, info))
+        books = item.get("gutenberg_ids") or []
+        if books:
+            for b in books:
+                url = f"https://www.gutenberg.org/cache/epub/{b['id']}/pg{b['id']}.txt"
+                ok, info = head(url)
+                rows.append((f"{item_id}[{b['slug'][:30]}]", ok, info))
+        else:
+            url = "https://www.gutenberg.org/browse/scores/top"
+            ok, info = head(url)
+            rows.append((f"{item_id} (top-100 index)", ok, info))
 
     elif fetcher == "stackexchange":
         sites = opts.get("sites") or []
