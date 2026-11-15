@@ -22,6 +22,7 @@ make web             # launch the web UI at :8090
 make test            # pytest unit suite (no network)
 make check-urls      # HEAD-check every URL in the plan (slow; needs network)
 make smoke-test      # end-to-end: deps/models/corpus/index/ask
+make e2e             # drive the web pages in headless Chrome as two users
 make clean           # wipe build/ (redownload everything)
 ```
 
@@ -94,6 +95,9 @@ pergamon identity import <name> <file>
 
 pergamon identity delete <name>
 #   Removes the key file + metadata. Prompts for confirmation.
+
+pergamon identity card [--name N] [--path FILE]
+#   Printable sheet of 4 member cards (npub as QR). Public key only.
 ```
 
 ## Nostr publishing
@@ -110,23 +114,96 @@ pergamon nostr relays rm  ws://peer.example/
 
 ## Classifieds
 
+Listings expire after 14 days unless renewed; renewing or closing re-signs
+the same listing so other pergamons replace the old version. Ten live
+listings per person is the soft cap (`--force` to exceed).
+
 ```bash
-pergamon classified post \
-    --title "20 lb apples" \
-    [--price-oz-ag 0.3] [--price-usd 12.50] \
-    [--accepts silver,barter,labor] \
-    [--location "Asheville NC"] \
-    [-t apples -t harvest] \
+pergamon classified post --title "20 lb apples" \
+    [--want]                         # a wanted post instead of an offer
+    [--qty "20 lb"] [--price-oz-ag 0.3] [--price-usd 12.50] \
+    [--accepts silver,barter,labor] [--location "Asheville NC"] \
+    [--ttl 14d] [-t apples -t harvest] [--force] \
     "description text..."
-#   Kind 30402 addressable event per NIP-99 with Pergamon's price tag
-#   extensions. Signs with the active identity, publishes to all
-#   configured relays.
 
-pergamon classified list [--tag X] [--limit 50]
-#   Fetch classifieds from relays. --tag filters by hashtag.
-
+pergamon classified list [--offers|--wanted] [--tag X] [--limit 50] [--all]
+#   Live listings only unless --all.
 pergamon classified search "chicken"
-#   Client-side substring filter across title/description/location.
+pergamon classified mine             # your listings with days left; N/10 live
+pergamon classified renew <id>       # another 14 days
+pergamon classified close <id>       # sold / no longer wanted
+pergamon classified matches          # others' offers that fit your wants, and vice versa
+```
+
+## Community board
+
+Local news, notices, events, help, lost & found, warnings. Plain Nostr
+notes, signed, not moderated.
+
+```bash
+pergamon board post --category news [--location X] "Bridge on Rt 9 is out"
+#   categories: news, notice, event, help, lost-found, warning
+pergamon board list [--category event] [--days 30]
+```
+
+## Skills + services
+
+```bash
+pergamon skills post --title "Small engine repair" --category repair \
+    [--level journeyman] [--availability weekends] [--radius 15] \
+    [--rate "1 day labor"] [--accepts barter,silver] [--cert "..."] [--location X] \
+    "Mowers, chainsaws, generators."
+#   categories: medical repair building food farming animals teaching childcare
+#   transport comms sewing metalwork woodwork electrical labor other
+#   Expires after 60 days unless renewed.
+pergamon skills list [--category medical]
+pergamon skills find "midwife"
+pergamon skills mine | renew <id> | close <id>
+```
+
+## Library + lending
+
+Books, tools, digital files, seeds, media. Only title, type, and creator of
+lendable/seedable items are ever published.
+
+```bash
+pergamon library add title="Where There Is No Doctor" type=book lendable=yes
+pergamon library add title="Stihl MS 250" type=tool lendable=yes serial=X1 \
+    required_skill="experienced" usage_limits="return with full tank"
+pergamon library list [--type tool] [--lendable]
+pergamon library lend <item_id> --to <npub-or-name> [--due 14d] [--borrowed]
+pergamon library return <loan_id> [--condition "chain dull"]
+pergamon library loans [--open|--overdue]
+pergamon library publish             # share your catalog (expires in 45 days)
+pergamon library find "pressure canner" [--type tool]
+```
+
+## Trade receipts + reputation
+
+A trade counts only when both people have confirmed the same receipt.
+
+```bash
+pergamon receipt draft --with <npub> --gave "0.3 oz Ag" --got "20 lb apples" [--listing <id>]
+#   prints a code; the other person runs:
+pergamon receipt confirm <code>
+pergamon receipt list                # confirmed / waiting on the other side
+
+pergamon reputation <npub>
+#   e.g. "3 confirmed trades · with 2 people · 4/5 listings kept up · active 40d"
+#   Counted from what this pergamon can see.
+```
+
+## Sync between pergamons
+
+Board posts, classifieds, receipts, library catalogs, skills, and profiles.
+Not DMs. Everything is signature-checked; duplicates are ignored.
+
+```bash
+pergamon sync pull ws://other-hub:8091/      # theirs → yours
+pergamon sync push ws://other-hub:8091/      # yours → theirs
+pergamon sync both ws://other-hub:8091/
+pergamon sync export --path /Volumes/USB/hub-2027-03-01.jsonl [--days 60]
+pergamon sync import /Volumes/USB/hub-2027-03-01.jsonl
 ```
 
 ## Delegation (NIP-26)
@@ -152,7 +229,12 @@ pergamon mesh listen
 #   Production: opens serial interface to a USB-attached Meshtastic node.
 #   Subscribes to DMs; replies with chunked RAG answers.
 #   Honors config/install.local.yaml → comms.meshtastic.allowed_node_ids.
+
+pergamon mesh info                   # attached radio, region, nodes it can hear
+pergamon mesh send <!nodeid> "text"  # one-off DM; ^all to broadcast
 ```
+
+See [mesh-test-plan.md](mesh-test-plan.md) for the two-radio checklist.
 
 ## Ledger (generic records)
 
@@ -199,6 +281,25 @@ Services shipped today:
 | nostr-relay | Nostr relay | 8091 | WebSocket; backbone for classifieds + DMs |
 
 Each service's `README.md` has its own first-time-setup walkthrough.
+
+## Web pages
+
+`pergamon web` (default port 8090) serves:
+
+| Page | What |
+|---|---|
+| `/welcome` | Landing page for phones on the hub WiFi; create or restore this device's key |
+| `/` | Ask / Plan / Search the library |
+| `/board` | Community board |
+| `/classifieds` | Browse, post, renew, close, matches |
+| `/receipts` | Record and confirm trades |
+| `/identity` | This device's key + the machine's identity; profile; member cards |
+| `/bulletin` | Printable sheet for the physical corkboard |
+| `/.well-known/nostr.json` | NIP-05 verification |
+
+Phones that have created a key on `/welcome` sign their own posts; the
+private key stays in that browser. Without a device key, pages post as the
+machine's active identity.
 
 ## Config files cheat sheet
 

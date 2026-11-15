@@ -162,9 +162,10 @@ Opens the Pergamon browser UI at `http://localhost:8090`. Features:
   - *Plan* — structured plan output (Goal / Steps / Resources / Risks /
     Verification)
   - *Search* — top-K raw retrieval hits, no LLM involved
-- **Identity** link in the header → manage your Nostr keys (step 9)
-- Phone-friendly — point any device on the LAN at
-  `http://<pergamon-mac-ip>:8090`
+- **Board**, **Classifieds**, **Receipts**, **Identity** in the header
+  (steps 9–12)
+- Phone-friendly — `make web` prints the address phones on the same WiFi
+  can use (e.g. `http://192.168.1.20:8090/`). Send phones to `/welcome`.
 
 ## Step 9 — Create your Nostr identity
 
@@ -195,6 +196,12 @@ dies, you lose the identity.
 See [identity.md](identity.md) for the full command reference and recovery
 procedures.
 
+**On a phone or another computer**, you don't need the terminal: open
+`/welcome`, enter a name, and tap **Create my key**. The key is created
+and kept in that browser and signs that device's posts; the Pergamon
+machine never sees it. Tap **Show backup key** and write it down — clearing
+the browser's data deletes the key.
+
 ## Step 10 — (Optional) Start the services
 
 If you installed Docker Desktop and picked services during `make setup`:
@@ -220,7 +227,8 @@ internet.
 
 ## Step 11 — Post your first classified
 
-With a Nostr identity and the relay running:
+With an identity and the relay running (posts need a relay to be stored
+and found):
 
 ```bash
 bin/pergamon classified post \
@@ -231,15 +239,44 @@ bin/pergamon classified post \
     "Honeycrisp, pick up in Asheville"
 ```
 
-Browse your own classifieds:
+Add `--want` to post something you're looking for instead. Then:
 
 ```bash
-bin/pergamon classified list
-bin/pergamon classified search apples
+bin/pergamon classified list         # live listings
+bin/pergamon classified mine         # yours, with days left
+bin/pergamon classified renew <id>   # listings expire after 14 days
+bin/pergamon classified close <id>   # sold
+bin/pergamon classified matches      # offers that fit your wants
 ```
 
-To share with other Pergamons: they add your relay URL to theirs
-(`bin/pergamon nostr relays add ws://your-ip:8091`) and vice versa.
+The same is on the **Classifieds** web page, which also shows each poster's
+reputation.
+
+## Step 12 — Record a trade
+
+After a trade, one person records it and the other confirms it. Only
+confirmed trades count toward either person's reputation.
+
+```bash
+bin/pergamon receipt draft --with <their npub> --gave "0.3 oz Ag" --got "20 lb apples"
+# prints a code; the other person runs:
+bin/pergamon receipt confirm <code>
+```
+
+Or use the **Receipts** page: it shows a QR code the other person can scan.
+
+## Step 13 — Talk to other Pergamons
+
+Each Pergamon only knows what was posted to its own relay. To share:
+
+```bash
+bin/pergamon sync both ws://<other-pergamon-ip>:8091/          # when you can reach each other
+bin/pergamon sync export --path /Volumes/USB/bundle.jsonl      # or carry a USB stick
+bin/pergamon sync import /Volumes/USB/bundle.jsonl
+```
+
+Running a Pergamon for a whole neighborhood (WiFi, printed bulletin, drop
+box, courier between towns) is covered in [grid-down.md](grid-down.md).
 
 ## Daily use
 
@@ -286,8 +323,11 @@ Live-tracked at: https://github.com/tchoffman/pergamon/issues
 
 Known limits as of this writing:
 
-- The Meshtastic radio path is skeleton-only — the mock mode works, the
-  real-radio path has not been verified against hardware.
+- The Meshtastic radio path has only run in mock mode; the real-radio path
+  hasn't been verified on hardware yet (see
+  [mesh-test-plan.md](mesh-test-plan.md)).
+- Captive portal: Pergamon's side is tested, but no real router has been
+  configured for it yet.
 - The `kiwix-serve` headless binary sometimes fails to download from
   kiwix.org; fallback to Kiwix.app is automatic.
 - ZIM ingestion is slow (local Ollama embedding is ~5 chunks/sec on an
@@ -300,6 +340,7 @@ Known limits as of this writing:
 
 - **Daily reference**: [commands.md](commands.md) — every subcommand with
   flags and examples.
+- **Running a community hub**: [grid-down.md](grid-down.md).
 - **Identity details**: [identity.md](identity.md) — NIP-05, backup,
   recovery, multi-user households.
 - **Hardware planning**: [hardware.md](hardware.md) — the "cage machine"
