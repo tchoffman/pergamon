@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Pergamon bulletin — {{ printed }}</title>
+  <style>
+    @page { size: letter; margin: 0.5in; }
+    body { font-family: Georgia, "Times New Roman", serif; color: #000; background: #fff;
+           margin: 0 auto; max-width: 8in; font-size: 11pt; line-height: 1.35; }
+    h1 { font-size: 20pt; margin: 0; letter-spacing: 0.02em; }
+    .masthead { border-bottom: 3px double #000; padding-bottom: 0.4em; margin-bottom: 0.8em; }
+    .meta { font-size: 9pt; }
+    h2 { font-size: 13pt; border-bottom: 1px solid #000; margin: 1em 0 0.4em; text-transform: uppercase;
+         letter-spacing: 0.06em; }
+    .cols { column-count: 2; column-gap: 0.35in; }
+    .item { break-inside: avoid; border: 1px solid #000; padding: 0.35em 0.5em; margin-bottom: 0.5em; }
+    .item strong { font-size: 11.5pt; }
+    .small { font-size: 8.5pt; }
+    .tear { border-top: 1px dashed #000; margin-top: 0.3em; padding-top: 0.2em; font-family: monospace; font-size: 8pt; }
+    .noprint { font-family: system-ui, sans-serif; background: #ffe; border: 1px solid #cc9; padding: 0.5em; margin: 0.5em 0; }
+    @media print { .noprint { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="noprint">Print this page (⌘P / Ctrl-P) and pin it to the board. Paper posts can be
+    added with the drop-box forms and will appear on the next print.
+    <a href="/board">Back to the board</a></div>
+
+  <div class="masthead">
+    <h1>Community Bulletin</h1>
+    <div class="meta">Printed {{ printed }}{% if host %} · host: {{ host.display_name or host.name }}{% endif %}
+      · Listings expire 14 days after posting unless renewed.</div>
+  </div>
+
+  {% if posts %}
+  <h2>News &amp; notices</h2>
+  <div class="cols">
+    {% for p in posts %}
+    <div class="item">
+      <strong>{{ p.category_title }}</strong>
+      <div>{{ p.text }}</div>
+      <div class="small">{{ p.location }}{% if p.location %} · {% endif %}from {{ p.pubkey[:12] }}…</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <h2>For trade — offered</h2>
+  {% if offers %}
+  <div class="cols">
+    {% for l in offers %}
+    <div class="item">
+      <strong>{{ l.title }}</strong>{% if l.qty %} — {{ l.qty }}{% endif %}
+      <div>{% if l.price_oz_ag is not none %}{{ l.price_oz_ag }} oz Ag{% endif %}{% if l.price_oz_ag is not none and l.price_usd is not none %} · {% endif %}{% if l.price_usd is not none %}${{ l.price_usd }}{% endif %}{% if l.price_oz_ag is none and l.price_usd is none %}barter / offer{% endif %}{% if l.accepts %} · accepts {{ l.accepts | join(", ") }}{% endif %}</div>
+      {% if l.description %}<div class="small">{{ l.description }}</div>{% endif %}
+      <div class="tear">ref {{ l.d }} · {{ l.pubkey[:12] }}…{% if l.location %} · {{ l.location }}{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}<p class="small">No live offers.</p>{% endif %}
+
+  <h2>Wanted</h2>
+  {% if wanted %}
+  <div class="cols">
+    {% for l in wanted %}
+    <div class="item">
+      <strong>{{ l.title }}</strong>{% if l.qty %} — {{ l.qty }}{% endif %}
+      {% if l.description %}<div class="small">{{ l.description }}</div>{% endif %}
+      <div class="tear">ref {{ l.d }} · {{ l.pubkey[:12] }}…{% if l.location %} · {{ l.location }}{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}<p class="small">No live wanted posts.</p>{% endif %}
+
+  <p class="small" style="margin-top:1.5em">To respond to a listing, leave a note in the drop box quoting
+    the <em>ref</em> code, or message the poster from any Pergamon.</p>
+</body>
+</html>

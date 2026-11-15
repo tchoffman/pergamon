@@ -42,6 +42,7 @@ from rich.table import Table
 from rag.config import REPO_ROOT
 from rag.identity import get_active, load_nsec
 from rag.nostr import (
+    subscribe_and_collect,
     Event,
     _load_relays_from_config,
     build_event,
@@ -243,47 +244,6 @@ def republish(d: str, nsec: str, *, status: str | None = None,
 
 # ───────────────────────── fetch from relays ───────────────────────
 
-async def _subscribe_and_collect(
-    relay_url: str,
-    filters: dict,
-    max_events: int,
-    timeout: float = 10.0,
-) -> list[Event]:
-    """Open a REQ subscription on one relay, collect events until EOSE or max_events."""
-    events: list[Event] = []
-    sub_id = secrets.token_hex(4)
-    try:
-        async with websockets.connect(relay_url, open_timeout=timeout) as ws:
-            await ws.send(json.dumps(["REQ", sub_id, filters]))
-            while len(events) < max_events:
-                try:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=timeout)
-                except asyncio.TimeoutError:
-                    break
-                msg = json.loads(raw)
-                if not isinstance(msg, list) or not msg:
-                    continue
-                if msg[0] == "EVENT" and len(msg) >= 3 and msg[1] == sub_id:
-                    raw_event = msg[2]
-                    ev = Event(
-                        kind=raw_event["kind"],
-                        content=raw_event["content"],
-                        pubkey=raw_event["pubkey"],
-                        tags=raw_event.get("tags", []),
-                        created_at=raw_event["created_at"],
-                        id=raw_event["id"],
-                        sig=raw_event["sig"],
-                    )
-                    if verify_event(ev):
-                        events.append(ev)
-                elif msg[0] == "EOSE" and len(msg) >= 2 and msg[1] == sub_id:
-                    break
-            await ws.send(json.dumps(["CLOSE", sub_id]))
-    except Exception as e:
-        console.print(f"[yellow]relay {relay_url} error:[/yellow] {e}")
-    return events
-
-
 async def afetch_listings(
     relay_urls: list[str],
     tag: str | None = None,
@@ -295,7 +255,7 @@ async def afetch_listings(
     if tag:
         filters["#t"] = [tag]
     batches = await asyncio.gather(
-        *(_subscribe_and_collect(u, filters, limit) for u in relay_urls)
+        *(subscribe_and_collect(u, filters, limit) for u in relay_urls)
     )
     events = latest_per_listing([ev for b in batches for ev in b])
     if live_only:

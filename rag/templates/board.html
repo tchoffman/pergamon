@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pergamon · Board</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Pergamon</h1>
+    <nav class="status">
+      <a href="/">Ask</a><span>·</span>
+      <a href="/board" class="muted">Board</a><span>·</span>
+      <a href="/classifieds">Classifieds</a><span>·</span>
+      <a href="/identity">Identity</a><span>·</span>
+      <a href="/bulletin">Print bulletin</a>
+    </nav>
+  </header>
+
+  <main>
+    <section>
+      <form id="filterForm">
+        <select id="cat" aria-label="category">
+          <option value="">All categories</option>
+          {% for key, title in categories.items() %}
+          <option value="{{ key }}">{{ title }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit">Show</button>
+      </form>
+      <div id="posts"><p class="muted">Loading…</p></div>
+    </section>
+
+    {% if active %}
+    <section>
+      <h2>Post to the board</h2>
+      <p class="muted">Posting as <strong>{{ active.name }}</strong>. Every post is signed — your
+        name is attached to what you write.</p>
+      <form id="postForm">
+        <div class="row">
+          <label for="p_cat">Category</label>
+          <select id="p_cat">
+            {% for key, title in categories.items() %}
+            <option value="{{ key }}">{{ title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="row"><label for="p_text">Message</label><textarea id="p_text" rows="4" maxlength="2000" required></textarea></div>
+        <div class="row"><label for="p_loc">Location (optional)</label><input id="p_loc" /></div>
+        <button type="submit">Post</button>
+      </form>
+      <div id="postResult" class="muted"></div>
+    </section>
+    {% else %}
+    <p class="warn">Create an identity on the <a href="/identity">Identity</a> page to post.</p>
+    {% endif %}
+  </main>
+
+  <footer><span class="muted">Offline library · everything runs locally.</span></footer>
+
+  <script>
+    const el = (tag, cls, text) => {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text !== undefined) n.textContent = text;
+      return n;
+    };
+
+    async function load() {
+      const box = document.getElementById("posts");
+      const cat = document.getElementById("cat").value;
+      try {
+        const r = await fetch("/api/board" + (cat ? "?category=" + cat : ""));
+        const data = await r.json();
+        box.innerHTML = "";
+        if (!data.posts.length) { box.appendChild(el("p", "muted", "Nothing posted in the last 30 days.")); return; }
+        data.posts.forEach(p => {
+          const c = el("div", "listing");
+          const head = el("div", "listing-head");
+          head.appendChild(el("span", p.category === "warning" ? "badge want" : "badge offer", p.category_title.toUpperCase()));
+          head.appendChild(el("span", "muted small",
+            "  " + new Date(p.created_at * 1000).toLocaleString() + " · " + p.pubkey.slice(0, 12) + "…"));
+          c.appendChild(head);
+          c.appendChild(el("p", "", p.text));
+          if (p.location) c.appendChild(el("div", "muted small", p.location));
+          box.appendChild(c);
+        });
+      } catch (e) {
+        box.innerHTML = "";
+        box.appendChild(el("p", "warn", "Could not reach relays: " + e));
+      }
+    }
+
+    document.getElementById("filterForm").addEventListener("submit", e => { e.preventDefault(); load(); });
+
+    const form = document.getElementById("postForm");
+    if (form) form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const out = document.getElementById("postResult");
+      out.textContent = "posting…";
+      const r = await fetch("/api/board", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          category: document.getElementById("p_cat").value,
+          text: document.getElementById("p_text").value,
+          location: document.getElementById("p_loc").value,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) { out.textContent = "error: " + (data.detail || r.statusText); return; }
+      out.textContent = "posted. " + Object.entries(data.published_to)
+        .map(([u, v]) => `${v.ok ? "✓" : "✗"} ${u}`).join("  ");
+      form.reset();
+      load();
+    });
+
+    load();
+  </script>
+</body>
+</html>

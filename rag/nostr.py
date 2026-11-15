@@ -20,6 +20,7 @@ import asyncio
 import hashlib
 import json
 import os
+import secrets
 import sys
 import time
 from dataclasses import dataclass, field
@@ -146,6 +147,58 @@ async def _publish_many(event: Event, relay_urls: list[str]) -> dict[str, tuple[
 def publish(event: Event, relay_urls: list[str]) -> dict[str, tuple[bool, str]]:
     """Blocking publish. Returns per-relay (ok, message)."""
     return asyncio.run(_publish_many(event, relay_urls))
+
+
+async def subscribe_and_collect(
+    relay_url: str,
+    filters: dict,
+    max_events: int,
+    timeout: float = 10.0,
+) -> list[Event]:
+    """Open a REQ subscription on one relay, collect events until EOSE or max_events."""
+    events: list[Event] = []
+    sub_id = secrets.token_hex(4)
+    try:
+        async with websockets.connect(relay_url, open_timeout=timeout) as ws:
+            await ws.send(json.dumps(["REQ", sub_id, filters]))
+            while len(events) < max_events:
+                try:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    break
+                msg = json.loads(raw)
+                if not isinstance(msg, list) or not msg:
+                    continue
+                if msg[0] == "EVENT" and len(msg) >= 3 and msg[1] == sub_id:
+                    raw_event = msg[2]
+                    ev = Event(
+                        kind=raw_event["kind"],
+                        content=raw_event["content"],
+                        pubkey=raw_event["pubkey"],
+                        tags=raw_event.get("tags", []),
+                        created_at=raw_event["created_at"],
+                        id=raw_event["id"],
+                        sig=raw_event["sig"],
+                    )
+                    if verify_event(ev):
+                        events.append(ev)
+                elif msg[0] == "EOSE" and len(msg) >= 2 and msg[1] == sub_id:
+                    break
+            await ws.send(json.dumps(["CLOSE", sub_id]))
+    except Exception as e:
+        console.print(f"[yellow]relay {relay_url} error:[/yellow] {e}", highlight=False)
+    return events
+
+
+
+async def afetch_events(relay_urls: list[str], filters: dict, limit: int = 100) -> list[Event]:
+    """Query several relays concurrently; de-dupe by id; newest first."""
+    batches = await asyncio.gather(*(subscribe_and_collect(u, filters, limit) for u in relay_urls))
+    seen: dict[str, Event] = {}
+    for b in batches:
+        for ev in b:
+            seen[ev.id] = ev
+    return sorted(seen.values(), key=lambda e: e.created_at, reverse=True)
 
 
 # ─────────────────────── relay config helpers ────────────────────────

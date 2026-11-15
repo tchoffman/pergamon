@@ -369,3 +369,56 @@ def api_classifieds_renew(d: str):
 @app.post("/api/classifieds/{d}/close")
 def api_classifieds_close(d: str):
     return _republish(d, "sold")
+
+
+# ─────────────────────────── community board ───────────────────────────
+
+from rag import board as _bd  # noqa: E402
+
+
+@app.get("/board", response_class=HTMLResponse)
+def board_page(request: Request):
+    active = get_active()
+    return templates.TemplateResponse(
+        request, "board.html",
+        {"active": active.meta() if active else None, "categories": _bd.CATEGORIES},
+    )
+
+
+@app.get("/api/board")
+def api_board(category: str | None = None, days: float = _bd.DEFAULT_DAYS):
+    if category and category not in _bd.CATEGORIES:
+        raise HTTPException(400, "unknown category")
+    return {"posts": _bd.fetch_posts(_load_relays_from_config(), category or None, days)}
+
+
+@app.post("/api/board")
+def api_board_post(body: dict):
+    ident = get_active()
+    if not ident:
+        raise HTTPException(400, "no active identity — create one on /identity")
+    try:
+        ev, results = _bd.post(ident, load_nsec(ident.name), body.get("text") or "",
+                               body.get("category") or "notice",
+                               (body.get("location") or "").strip() or None)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"post": _bd.summarize(ev),
+            "published_to": {u: {"ok": ok, "message": m} for u, (ok, m) in results.items()}}
+
+
+@app.get("/bulletin", response_class=HTMLResponse)
+def bulletin(request: Request, days: float = 14):
+    """Printable sheet for the physical board at a host site."""
+    import time as _t
+    relays = _load_relays_from_config()
+    listings = _cl.search_infos(_cl.fetch_listings(relays, limit=200))
+    posts = _bd.fetch_posts(relays, days=days)
+    return templates.TemplateResponse(request, "bulletin.html", {
+        "offers": [l for l in listings if l["side"] == "offering"],
+        "wanted": [l for l in listings if l["side"] == "looking-for"],
+        "posts": posts,
+        "categories": _bd.CATEGORIES,
+        "printed": _t.strftime("%A %B %-d, %Y %H:%M"),
+        "host": get_active().meta() if get_active() else None,
+    })
