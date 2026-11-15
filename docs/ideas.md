@@ -293,6 +293,35 @@ does the enforcement. This is how real towns have handled this forever
 (the bulletin board at the general store). Build the formal system only
 after watching the simple version in production.
 
+## Foraging / plant + mushroom ID
+
+Current corpus is near-empty on foraging content, yet it's one of the
+highest-stakes off-grid use cases. Three interlocking pieces, tracked
+as GitHub issues #10, #11, #12.
+
+**Content shelf (issue #10):** USDA Plants fact sheets, FDA/CDC toxic
+plant databases, USFS brochures, a curated Gutenberg botany shelf
+(Millspaugh, Peck, Nelson, Hough — all PD), Wikibooks field guides,
+Mushroom Observer CC-licensed subset. Peterson's / Mushrooms
+Demystified / Audubon stay "buy physical" because they're copyrighted.
+
+**Domain-aware safety prompts (issue #11):** detect foraging queries,
+prepend a safety tail to the system prompt: never a positive ID, require
+multiple corroborating sources, flag deadly look-alikes, defer to in-
+person expert confirmation. Prerequisite before any foraging content
+reaches \`pergamon ask\`.
+
+**Photo-based ID (issue #12):** PWA with camera → local CoreML/ONNX
+model (PlantCLEF / iNat21 / Mushroom Observer–fine-tuned) → top-K
+candidates with corpus lookup for each. **Never a single-candidate
+match**; minimum 3 options shown with mandatory safety banner. Honest
+about accuracy: ~70–80% top-1 best case; the pergamon's photo ID is a
+shortlist generator, not a determination.
+
+**The hard rule:** foraging RAG without the safety-prompt layer
+(issue #11) is dangerous. Ship content and photo-ID only after
+safety prompts are in place.
+
 ## Marketplace freshness + reliability
 
 The single hardest problem in a distributed marketplace: **stale listings
