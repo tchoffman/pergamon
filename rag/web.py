@@ -274,6 +274,23 @@ def search_endpoint(q: str, k: int = 6):
     }
 
 
+def _is_hex_pub(v: str | None) -> bool:
+    return bool(v) and len(v) == 64 and all(c in "0123456789abcdef" for c in v)
+
+
+def _whose(pubkey: str | None) -> str:
+    """The pubkey a request acts for: a browser-held key if given, else the
+    machine's active identity."""
+    if pubkey:
+        if not _is_hex_pub(pubkey):
+            raise HTTPException(400, "pubkey must be 64 lowercase hex characters")
+        return pubkey
+    ident = get_active()
+    if not ident:
+        raise HTTPException(400, "no identity — create a key on this device or on /identity")
+    return ident.hex_pub
+
+
 # ─────────────────────────────── classifieds ───────────────────────────────
 # Sync endpoints on purpose: FastAPI runs them in a worker thread, so the
 # blocking relay helpers (which use asyncio.run) are safe to call.
@@ -300,23 +317,18 @@ def api_classifieds(q: str = "", side: str | None = None, tag: str | None = None
 
 
 @app.get("/api/classifieds/mine")
-def api_classifieds_mine():
-    ident = get_active()
-    if not ident:
-        raise HTTPException(400, "no active identity")
+def api_classifieds_mine(pubkey: str | None = None):
+    me = _whose(pubkey)
     rows = [_cl.summarize(_cl._event_from_json(r)) for r in _cl._load_mine().values()
-            if r["pubkey"] == ident.hex_pub]
+            if r["pubkey"] == me]
     rows.sort(key=lambda r: r["created_at"], reverse=True)
     return {"listings": rows, "live": sum(r["is_live"] for r in rows),
             "soft_cap": _cl.SOFT_CAP}
 
 
 @app.get("/api/classifieds/matches")
-def api_classifieds_matches():
-    ident = get_active()
-    if not ident:
-        raise HTTPException(400, "no active identity")
-    mine = _cl.my_live_listings(ident.hex_pub)
+def api_classifieds_matches(pubkey: str | None = None):
+    mine = _cl.my_live_listings(_whose(pubkey))
     others = _cl.search_infos(_cl.fetch_listings(_load_relays_from_config(), limit=500)) if mine else []
     return {"matches": _cl.find_matches(mine, others)}
 
@@ -478,19 +490,17 @@ def receipts_page(request: Request):
 
 
 @app.get("/api/receipts")
-def api_receipts():
-    ident = get_active()
-    if not ident:
-        raise HTTPException(400, "no active identity")
-    events = asyncio.run(_rc.afetch_for(_load_relays_from_config(), ident.hex_pub))
+def api_receipts(pubkey: str | None = None):
+    me = _whose(pubkey)
+    events = asyncio.run(_rc.afetch_for(_load_relays_from_config(), me))
     confirmed = {b["id"] for b in _rc.confirmed_receipts(events)}
     rows = []
     for b in sorted(_rc._load_mine().values(), key=lambda b: b["date"], reverse=True):
-        if ident.hex_pub not in b["parties"]:
+        if me not in b["parties"]:
             continue
-        other = next(p for p in b["parties"] if p != ident.hex_pub)
+        other = next(p for p in b["parties"] if p != me)
         rows.append({"id": b["id"], "date": b["date"], "with": other,
-                     "text": _rc.describe(b, ident.hex_pub),
+                     "text": _rc.describe(b, me),
                      "confirmed": b["id"] in confirmed,
                      "code": _rc.encode_code(b)})
     return {"receipts": rows}
@@ -557,3 +567,160 @@ for _p in _PROBE_PATHS:
 @app.get("/welcome", response_class=HTMLResponse)
 def welcome(request: Request):
     return templates.TemplateResponse(request, "welcome.html", {"status": _status()})
+
+
+
+# ─────────────────────── browser-held keys: draft + publish ───────────────────────
+# The server builds unsigned events for a given pubkey (validation stays here);
+# the browser signs them with its own key; /api/publish verifies and relays.
+
+import json as _json  # noqa: E402
+import time as _time  # noqa: E402
+
+from rag import skills as _sk  # noqa: E402
+from rag.nostr import Event as _Event, verify_event as _verify  # noqa: E402
+
+MAX_EVENT_BYTES = 64 * 1024
+_PROFILE_KEYS = {"display_name", "name", "about", "picture", "nip05", "website", "lud16", "banner"}
+
+
+def _draft(ev) -> dict:
+    return {"event": {"pubkey": ev.pubkey, "created_at": ev.created_at, "kind": ev.kind,
+                      "tags": ev.tags, "content": ev.content}}
+
+
+def _need_pub(body: dict) -> str:
+    pub = (body or {}).get("pubkey")
+    if not _is_hex_pub(pub):
+        raise HTTPException(400, "pubkey (64 hex chars) required")
+    return pub
+
+
+@app.post("/api/draft/board")
+def draft_board(body: dict):
+    pub = _need_pub(body)
+    try:
+        ev = _bd.build_post(pub, body.get("text") or "", body.get("category") or "notice",
+                            (body.get("location") or "").strip() or None)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return _draft(ev)
+
+
+@app.post("/api/draft/classifieds")
+def draft_classified(body: dict):
+    pub = _need_pub(body)
+    title = (body.get("title") or "").strip()
+    if not title:
+        raise HTTPException(400, "title required")
+    if not body.get("force") and len(_cl.my_live_listings(pub)) >= _cl.SOFT_CAP:
+        raise HTTPException(409, f"you already have {_cl.SOFT_CAP} live listings — close or "
+                                 "let one expire, or post anyway")
+    accepts = body.get("accepts") or []
+    if isinstance(accepts, str):
+        accepts = [a.strip() for a in accepts.split(",") if a.strip()]
+    tags = body.get("hashtags") or []
+    if isinstance(tags, str):
+        tags = [t.strip().lstrip("#") for t in tags.split(",") if t.strip()]
+    try:
+        ev = _cl.build_listing_event(
+            pub, title, (body.get("description") or "").strip(),
+            side=body.get("side") or "offering", price_oz_ag=_num(body.get("price_oz_ag")),
+            price_usd=_num(body.get("price_usd")), accepts=accepts or None,
+            location=body.get("location") or None, qty=body.get("qty") or None, hashtags=tags,
+            ttl_days=_num(body.get("ttl_days")) or _cl.DEFAULT_TTL_DAYS)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return _draft(ev)
+
+
+@app.post("/api/draft/classifieds/{d}/{action}")
+def draft_classified_republish(d: str, action: str, body: dict):
+    pub = _need_pub(body)
+    if action not in ("renew", "close"):
+        raise HTTPException(404, "unknown action")
+    raw = _cl._load_mine().get(d)
+    if not raw or raw["pubkey"] != pub:
+        raise HTTPException(404, f"no listing {d} for this key")
+    return _draft(_cl.build_republish(d, status="sold" if action == "close" else None))
+
+
+@app.post("/api/draft/receipt")
+def draft_receipt(body: dict):
+    pub = _need_pub(body)
+    try:
+        rb = _rc.make_body(pub, _rc._hex_pub(body.get("with") or ""), body.get("gave") or "",
+                           body.get("got") or "", body.get("listing") or None,
+                           body.get("note") or None)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    code = _rc.encode_code(rb)
+    return {**_draft(_rc.build_receipt_event(pub, rb)), "code": code,
+            "qr": _cards.qr_svg(code, scale=4), "text": _rc.describe(rb, pub)}
+
+
+@app.post("/api/draft/receipt/confirm")
+def draft_receipt_confirm(body: dict):
+    pub = _need_pub(body)
+    try:
+        rb = _rc.decode_code(body.get("code") or "")
+        ev = _rc.build_receipt_event(pub, rb)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {**_draft(ev), "text": _rc.describe(rb, pub)}
+
+
+@app.post("/api/draft/profile")
+def draft_profile(body: dict):
+    pub = _need_pub(body)
+    meta = {k: v for k, v in body.items() if k in _PROFILE_KEYS and isinstance(v, str) and v.strip()}
+    if not meta:
+        raise HTTPException(400, "no profile fields")
+    return _draft(build_event(kind=0, content=_json.dumps(meta, separators=(",", ":")),
+                              pubkey_hex=pub))
+
+
+def _check_publishable(ev: "_Event") -> None:
+    tags = {t[0]: t[1:] for t in ev.tags if t}
+    if ev.kind == 1:
+        if ["pergamon-board"] not in [t[1:2] for t in ev.tags if t and t[0] == "t"]:
+            raise HTTPException(400, "only community-board notes are relayed")
+    elif ev.kind == 0:
+        try:
+            meta = _json.loads(ev.content)
+        except ValueError:
+            raise HTTPException(400, "profile content must be JSON")
+        if not isinstance(meta, dict) or not set(meta) <= _PROFILE_KEYS:
+            raise HTTPException(400, "unexpected profile fields")
+    elif ev.kind in (_cl.KIND_CLASSIFIED, _sk.KIND_SKILL, _rc.KIND_RECEIPT, 30406):
+        if "d" not in tags:
+            raise HTTPException(400, "addressable event needs a d tag")
+    else:
+        raise HTTPException(400, f"kind {ev.kind} is not relayed by this hub")
+    if abs(ev.created_at - _time.time()) > 2 * 86400:
+        raise HTTPException(400, "event timestamp is too far from now — check the device clock")
+
+
+@app.post("/api/publish")
+def api_publish(body: dict):
+    raw = (body or {}).get("event") or {}
+    if len(_json.dumps(raw)) > MAX_EVENT_BYTES:
+        raise HTTPException(413, "event too large")
+    try:
+        ev = _Event(kind=int(raw["kind"]), content=str(raw["content"]), pubkey=str(raw["pubkey"]),
+                    tags=list(raw["tags"]), created_at=int(raw["created_at"]),
+                    id=str(raw["id"]), sig=str(raw["sig"]))
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(400, "malformed event")
+    if not _verify(ev):
+        raise HTTPException(400, "signature does not verify")
+    _check_publishable(ev)
+    results = _cl.publish(ev, _load_relays_from_config())
+    if ev.kind == _cl.KIND_CLASSIFIED:
+        _cl._remember(ev)
+    elif ev.kind == _sk.KIND_SKILL:
+        _sk._remember(ev)
+    elif ev.kind == _rc.KIND_RECEIPT:
+        _rc._remember(_json.loads(ev.content))
+    return {"id": ev.id,
+            "published_to": {u: {"ok": ok, "message": m} for u, (ok, m) in results.items()}}

@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Pergamon · Identity</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <script src="/static/vendor/noble-nostr.js"></script>
+  <script src="/static/pergamon.js"></script>
 </head>
 <body>
   <header>
@@ -22,8 +24,10 @@
   </header>
 
   <main>
+    {% include "_device_key.html" %}
+
     <section>
-      <h2>Active identity</h2>
+      <h2>This machine's identity (used by the terminal and by browsers without a key)</h2>
       {% if active %}
         <div id="active" class="active-card">
           <div><strong>{{ active.name }}</strong>{% if active.display_name %} — {{ active.display_name }}{% endif %}</div>

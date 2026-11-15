@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Pergamon — community network</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <script src="/static/vendor/noble-nostr.js"></script>
+  <script src="/static/pergamon.js"></script>
 </head>
 <body>
   <header><h1>Pergamon</h1>
@@ -18,8 +20,9 @@
       <div class="muted small">Trade goods — offers and wanted posts</div></div>
     <div class="listing"><a href="/"><strong>Ask the library</strong></a>
       <div class="muted small">Questions answered from {{ status.zims }} offline reference collection(s)</div></div>
-    <div class="listing"><a href="/identity"><strong>Get an identity</strong></a>
-      <div class="muted small">Needed to post. Your key stays on this machine unless you export it.</div></div>
+    <div class="listing"><a href="/receipts"><strong>Record a trade</strong></a>
+      <div class="muted small">Both sides confirm; it builds both people's reputation</div></div>
+    {% include "_device_key.html" %}
     <p class="muted small">Tip: bookmark this page or add it to your home screen.</p>
   </main>
 </body>

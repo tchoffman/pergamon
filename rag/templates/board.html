@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Pergamon · Board</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <script src="/static/vendor/noble-nostr.js"></script>
+  <script src="/static/pergamon.js"></script>
 </head>
 <body>
   <header>
@@ -33,11 +35,9 @@
       <div id="posts"><p class="muted">Loading…</p></div>
     </section>
 
-    {% if active %}
     <section>
       <h2>Post to the board</h2>
-      <p class="muted">Posting as <strong>{{ active.name }}</strong>. Every post is signed — your
-        name is attached to what you write.</p>
+      <p class="muted" id="whoami"></p>
       <form id="postForm">
         <div class="row">
           <label for="p_cat">Category</label>
@@ -53,9 +53,6 @@
       </form>
       <div id="postResult" class="muted"></div>
     </section>
-    {% else %}
-    <p class="warn">Create an identity on the <a href="/identity">Identity</a> page to post.</p>
-    {% endif %}
   </main>
 
   <footer><span class="muted">Offline library · everything runs locally.</span></footer>
@@ -95,26 +92,38 @@
 
     document.getElementById("filterForm").addEventListener("submit", e => { e.preventDefault(); load(); });
 
+    const HUB = {{ (active.display_name or active.name) | tojson if active else "null" }};
     const form = document.getElementById("postForm");
-    if (form) form.addEventListener("submit", async e => {
+    function whoami() {
+      const k = Pergamon.Keys.get();
+      const box = document.getElementById("whoami");
+      if (k) box.textContent = "Posting as " + (k.name || "you") + " (this device's key). Every post is signed.";
+      else if (HUB) box.textContent = "Posting as the hub identity “" + HUB + "”. To post as yourself, create a key on the Welcome page.";
+      else box.innerHTML = 'No key yet — <a href="/welcome">create one</a> to post.';
+      form.classList.toggle("hidden", !k && !HUB);
+    }
+    form.addEventListener("submit", async e => {
       e.preventDefault();
       const out = document.getElementById("postResult");
       out.textContent = "posting…";
-      const r = await fetch("/api/board", {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-          category: document.getElementById("p_cat").value,
-          text: document.getElementById("p_text").value,
-          location: document.getElementById("p_loc").value,
-        }),
-      });
-      const data = await r.json();
-      if (!r.ok) { out.textContent = "error: " + (data.detail || r.statusText); return; }
-      out.textContent = "posted. " + Object.entries(data.published_to)
-        .map(([u, v]) => `${v.ok ? "✓" : "✗"} ${u}`).join("  ");
-      form.reset();
-      load();
+      const body = {
+        category: document.getElementById("p_cat").value,
+        text: document.getElementById("p_text").value,
+        location: document.getElementById("p_loc").value,
+      };
+      try {
+        const data = Pergamon.Keys.has()
+          ? await Pergamon.signAndPublish("/api/draft/board", body)
+          : await Pergamon.postJSON("/api/board", body);
+        out.textContent = "posted. " + Object.entries(data.published_to)
+          .map(([u, v]) => `${v.ok ? "✓" : "✗"} ${u}`).join("  ");
+        form.reset();
+        load();
+      } catch (err) {
+        out.textContent = "error: " + err.message;
+      }
     });
+    whoami();
 
     load();
   </script>

@@ -215,32 +215,29 @@ def _event_from_json(raw: dict) -> Event:
     )
 
 
-def republish(d: str, nsec: str, *, status: str | None = None,
-              ttl_days: float = DEFAULT_TTL_DAYS) -> Event:
-    """Re-sign a remembered listing with a fresh expiry (renew) or new status
-    (close). Same d-tag, so relays and clients replace the old version."""
+def build_republish(d: str, *, status: str | None = None,
+                    ttl_days: float = DEFAULT_TTL_DAYS) -> Event:
+    """Unsigned new version of a remembered listing: fresh expiry (renew) or
+    new status (close). Same d-tag, strictly newer timestamp."""
     mine = _load_mine()
     if d not in mine:
         raise KeyError(f"no local listing with id {d!r}")
     ev = _event_from_json(mine[d])
     now = int(time.time())
-    new_tags = []
-    for t in ev.tags:
-        if t[0] == "expires_at":
-            continue
-        if t[0] == "status" and status:
-            continue
-        if t[0] == "published_at":
-            continue
-        new_tags.append(t)
+    new_tags = [t for t in ev.tags
+                if t[0] not in ("expires_at", "published_at") and not (t[0] == "status" and status)]
     new_tags.append(["expires_at", str(int(now + ttl_days * 86400))])
     new_tags.append(["published_at", str(now)])
     if status:
         new_tags.append(["status", status])
     fresh = build_event(kind=ev.kind, content=ev.content, pubkey_hex=ev.pubkey, tags=new_tags)
     fresh.created_at = max(fresh.created_at, ev.created_at + 1)  # must supersede the old version
-    sign_event(fresh, nsec)
     return fresh
+
+
+def republish(d: str, nsec: str, *, status: str | None = None,
+              ttl_days: float = DEFAULT_TTL_DAYS) -> Event:
+    return sign_event(build_republish(d, status=status, ttl_days=ttl_days), nsec)
 
 
 # ───────────────────────── fetch from relays ───────────────────────

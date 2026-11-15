@@ -136,7 +136,7 @@ def _remember(ev: Event) -> None:
     MINE_PATH.write_text(json.dumps(mine, indent=2))
 
 
-def republish(d: str, nsec: str, status: str | None = None) -> Event:
+def build_republish(d: str, status: str | None = None) -> Event:
     mine = _load_mine()
     if d not in mine:
         raise KeyError(f"no local skill listing {d!r}")
@@ -149,7 +149,11 @@ def republish(d: str, nsec: str, status: str | None = None) -> Event:
         tags.append(["status", status])
     ev = build_event(KIND_SKILL, raw["content"], raw["pubkey"], tags)
     ev.created_at = max(ev.created_at, raw["created_at"] + 1)  # must supersede the old version
-    sign_event(ev, nsec)
+    return ev
+
+
+def republish(d: str, nsec: str, status: str | None = None) -> Event:
+    ev = sign_event(build_republish(d, status), nsec)
     _remember(ev)
     return ev
 

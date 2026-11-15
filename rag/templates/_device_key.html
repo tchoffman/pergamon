@@ -1,0 +1,78 @@
+<section id="deviceKey">
+  <h2>This device's key</h2>
+  <div id="dk_none" class="hidden">
+    <p class="muted">To post from this phone or computer as yourself, create a key. It's stored only
+      in this browser and signs your posts here — the hub never sees it.</p>
+    <form id="dk_create">
+      <div class="row"><label for="dk_name">Your name (shown to neighbors)</label>
+        <input id="dk_name" placeholder="Rosa, Main St" /></div>
+      <button type="submit">Create my key</button>
+    </form>
+    <details style="margin-top:0.75rem">
+      <summary class="muted">I already have a key (restore from backup)</summary>
+      <form id="dk_import" style="margin-top:0.5rem">
+        <div class="row"><label for="dk_nsec">Backup key (starts with nsec1)</label>
+          <input id="dk_nsec" autocomplete="off" autocapitalize="off" spellcheck="false" /></div>
+        <button type="submit">Restore</button>
+      </form>
+    </details>
+  </div>
+  <div id="dk_have" class="hidden">
+    <div class="active-card">
+      <div><strong id="dk_shown_name"></strong></div>
+      <div class="muted mono" id="dk_npub"></div>
+    </div>
+    <p class="warn small">Save your backup key somewhere safe (write it down or photograph it).
+      If this browser's data is cleared, the key is gone and so is your trade history.</p>
+    <div class="actions">
+      <button class="small-btn" id="dk_backup">Show backup key</button>
+      <button class="small-btn secondary" id="dk_forget">Remove from this device</button>
+    </div>
+    <div id="dk_nsec_shown" class="mono small hidden" style="margin-top:0.5rem"></div>
+  </div>
+  <div id="dk_msg" class="muted small"></div>
+</section>
+<script>
+(function () {
+  const K = Pergamon.Keys;
+  const $ = (id) => document.getElementById(id);
+  function render() {
+    const k = K.get();
+    $("dk_none").classList.toggle("hidden", !!k);
+    $("dk_have").classList.toggle("hidden", !k);
+    if (k) {
+      $("dk_shown_name").textContent = k.name || "(no name)";
+      $("dk_npub").textContent = K.npub();
+    }
+    document.dispatchEvent(new CustomEvent("pergamon-key-changed"));
+  }
+  async function publishName(name) {
+    if (!name) return;
+    try { await Pergamon.signAndPublish("/api/draft/profile", { display_name: name }); }
+    catch (e) { $("dk_msg").textContent = "Key saved, but the name wasn't shared yet: " + e.message; }
+  }
+  $("dk_create").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = $("dk_name").value.trim();
+    K.create(name);
+    render();
+    await publishName(name);
+  });
+  $("dk_import").addEventListener("submit", (e) => {
+    e.preventDefault();
+    try { K.importNsec($("dk_nsec").value, ""); $("dk_msg").textContent = "Key restored."; render(); }
+    catch (err) { $("dk_msg").textContent = err.message; }
+  });
+  $("dk_backup").addEventListener("click", () => {
+    const box = $("dk_nsec_shown");
+    box.textContent = K.nsec();
+    box.classList.toggle("hidden");
+  });
+  $("dk_forget").addEventListener("click", () => {
+    if (confirm("Remove this key from this device? Without your backup it cannot be recovered.")) {
+      K.forget(); render();
+    }
+  });
+  render();
+})();
+</script>
