@@ -730,3 +730,95 @@ def api_publish(body: dict):
 def favicon():
     from fastapi.responses import Response
     return Response(status_code=204)
+
+
+# ─────────────────────────────── skills ───────────────────────────────
+
+
+def _skill_fields(body: dict) -> dict:
+    accepts = body.get("accepts") or []
+    if isinstance(accepts, str):
+        accepts = [a.strip() for a in accepts.split(",") if a.strip()]
+    return dict(
+        title=(body.get("title") or "").strip(),
+        description=(body.get("description") or "").strip(),
+        category=body.get("category") or "other",
+        level=body.get("level") or None,
+        availability=(body.get("availability") or "").strip() or None,
+        radius_mi=_num(body.get("radius_mi")),
+        location=(body.get("location") or "").strip() or None,
+        rate=(body.get("rate") or "").strip() or None,
+        cert=(body.get("cert") or "").strip() or None,
+        accepts=accepts or None,
+    )
+
+
+@app.get("/skills", response_class=HTMLResponse)
+def skills_page(request: Request):
+    active = get_active()
+    return templates.TemplateResponse(request, "skills.html", {
+        "active": active.meta() if active else None,
+        "categories": _sk.CATEGORIES, "levels": _sk.LEVELS})
+
+
+@app.get("/api/skills")
+def api_skills(q: str = "", category: str | None = None):
+    events = asyncio.run(_sk.afetch(_load_relays_from_config(), category or None))
+    return {"skills": _sk.search(events, q, category or None)}
+
+
+@app.get("/api/skills/mine")
+def api_skills_mine(pubkey: str | None = None):
+    me = _whose(pubkey)
+    rows = [_sk.summarize(_Event(**{k: r[k] for k in ("kind", "content", "pubkey", "tags",
+                                                     "created_at", "id", "sig")}))
+            for r in _sk._load_mine().values() if r["pubkey"] == me]
+    rows.sort(key=lambda r: r["created_at"], reverse=True)
+    return {"skills": rows}
+
+
+@app.post("/api/draft/skills")
+def draft_skill(body: dict):
+    pub = _need_pub(body)
+    try:
+        return _draft(_sk.build_skill_event(pub, **_skill_fields(body)))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/draft/skills/{d}/{action}")
+def draft_skill_republish(d: str, action: str, body: dict):
+    pub = _need_pub(body)
+    if action not in ("renew", "close"):
+        raise HTTPException(404, "unknown action")
+    raw = _sk._load_mine().get(d)
+    if not raw or raw["pubkey"] != pub:
+        raise HTTPException(404, f"no skill listing {d} for this key")
+    return _draft(_sk.build_republish(d, "closed" if action == "close" else None))
+
+
+@app.post("/api/skills")
+def api_skills_post(body: dict):
+    ident = get_active()
+    if not ident:
+        raise HTTPException(400, "no identity — create a key on this device")
+    try:
+        ev, results = _sk.post(ident, load_nsec(ident.name), **_skill_fields(body))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"skill": _sk.summarize(ev),
+            "published_to": {u: {"ok": ok, "message": m} for u, (ok, m) in results.items()}}
+
+
+@app.post("/api/skills/{d}/{action}")
+def api_skills_republish(d: str, action: str):
+    ident = get_active()
+    if not ident or action not in ("renew", "close"):
+        raise HTTPException(400, "no identity or unknown action")
+    try:
+        ev = _sk.republish(d, load_nsec(ident.name), "closed" if action == "close" else None)
+    except KeyError:
+        raise HTTPException(404, f"no skill listing {d}")
+    results = _cl.publish(ev, _load_relays_from_config())
+    return {"skill": _sk.summarize(ev),
+            "published_to": {u: {"ok": ok, "message": m} for u, (ok, m) in results.items()}}

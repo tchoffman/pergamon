@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pergamon · Skills</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="/static/vendor/noble-nostr.js"></script>
+  <script src="/static/pergamon.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Pergamon</h1>
+    <nav class="status">
+      <a href="/">Ask</a><span>·</span>
+      <a href="/board">Board</a><span>·</span>
+      <a href="/classifieds">Classifieds</a><span>·</span>
+      <a href="/skills" class="muted">Skills</a><span>·</span>
+      <a href="/receipts">Receipts</a><span>·</span>
+      <a href="/identity">Identity</a>
+    </nav>
+  </header>
+
+  <main>
+    <section>
+      <form id="filterForm">
+        <select id="cat" aria-label="category">
+          <option value="">All skills</option>
+          {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+        </select>
+        <input id="q" type="text" placeholder="midwife, welding, tutoring…" autocomplete="off" />
+        <button type="submit">Search</button>
+      </form>
+      <div id="skills"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section id="postSection">
+      <h2>Offer a skill or service</h2>
+      <p class="muted"><span id="whoami"></span> Listings last 60 days unless renewed.</p>
+      <form id="postForm">
+        <div class="row"><label for="s_title">What you can do</label>
+          <input id="s_title" required placeholder="Small engine repair" /></div>
+        <div class="row"><label for="s_cat">Category</label>
+          <select id="s_cat">{% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
+        <div class="row"><label for="s_level">Experience</label>
+          <select id="s_level"><option value="">(not stated)</option>
+            {% for l in levels %}<option value="{{ l }}">{{ l }}</option>{% endfor %}</select></div>
+        <div class="row"><label for="s_desc">Details</label><textarea id="s_desc" rows="3"></textarea></div>
+        <div class="row"><label for="s_avail">Availability</label><input id="s_avail" placeholder="weekends, evenings, on call" /></div>
+        <div class="row"><label for="s_rate">Rate</label><input id="s_rate" placeholder="0.2 oz Ag/day, or barter" /></div>
+        <div class="row"><label for="s_accepts">Accepts (comma-separated)</label><input id="s_accepts" placeholder="barter, silver, labor" /></div>
+        <div class="row"><label for="s_radius">Will travel (miles)</label><input id="s_radius" type="number" min="0" /></div>
+        <div class="row"><label for="s_loc">Location</label><input id="s_loc" /></div>
+        <div class="row"><label for="s_cert">Training / certification (optional)</label><input id="s_cert" /></div>
+        <button type="submit">Post</button>
+      </form>
+      <div id="postResult" class="muted"></div>
+    </section>
+
+    <section id="mineSection">
+      <h2>My skills</h2>
+      <div id="mine"></div>
+    </section>
+    <p class="warn hidden" id="noKey">To offer a skill, <a href="/welcome">create a key on this device</a>.</p>
+  </main>
+
+  <footer><span class="muted">Offline library · everything runs locally.</span></footer>
+
+  <script>
+    const HUB = {{ (active.display_name or active.name) | tojson if active else "null" }};
+    const K = Pergamon.Keys;
+    const el = (tag, cls, text) => {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text !== undefined) n.textContent = text;
+      return n;
+    };
+    const pubParam = () => (K.has() ? "?pubkey=" + K.pubkey() : "");
+
+    function card(s) {
+      const c = el("div", "listing");
+      const head = el("div", "listing-head");
+      head.appendChild(el("span", "badge offer", s.category.toUpperCase()));
+      head.appendChild(el("strong", "", " " + s.title));
+      if (s.level) head.appendChild(el("span", "muted small", " · " + s.level));
+      c.appendChild(head);
+      if (s.description) c.appendChild(el("p", "", s.description));
+      const meta = [s.availability, s.rate, s.location,
+                    s.radius_mi ? "travels " + s.radius_mi + " mi" : "",
+                    s.accepts && s.accepts.length ? "accepts " + s.accepts.join(", ") : "",
+                    s.cert ? "training: " + s.cert : ""].filter(Boolean);
+      if (meta.length) c.appendChild(el("div", "muted small", meta.join(" · ")));
+      c.appendChild(el("div", "muted small", "from " + s.pubkey.slice(0, 12) + "… · ref " + s.d));
+      return c;
+    }
+
+    async function load() {
+      const box = document.getElementById("skills");
+      const params = new URLSearchParams({ q: document.getElementById("q").value,
+                                           category: document.getElementById("cat").value });
+      try {
+        const data = await (await fetch("/api/skills?" + params)).json();
+        box.innerHTML = "";
+        if (!data.skills.length) { box.appendChild(el("p", "muted", "No skills listed yet.")); return; }
+        data.skills.forEach(s => box.appendChild(card(s)));
+      } catch (e) {
+        box.innerHTML = "";
+        box.appendChild(el("p", "warn", "Could not reach relays: " + e));
+      }
+    }
+
+    async function loadMine() {
+      const box = document.getElementById("mine");
+      const r = await fetch("/api/skills/mine" + pubParam());
+      if (!r.ok) { box.textContent = ""; return; }
+      const data = await r.json();
+      box.innerHTML = "";
+      if (!data.skills.length) { box.appendChild(el("p", "muted", "None yet.")); return; }
+      data.skills.forEach(s => {
+        const c = card(s);
+        const actions = el("div", "actions");
+        if (s.status === "active") {
+          const renew = el("button", "small-btn", "Renew 60d");
+          renew.onclick = () => act(s.d, "renew");
+          const close = el("button", "small-btn secondary", "Stop offering");
+          close.onclick = () => act(s.d, "close");
+          actions.append(renew, close);
+        } else {
+          actions.appendChild(el("span", "muted", s.status));
+        }
+        c.appendChild(actions);
+        box.appendChild(c);
+      });
+    }
+
+    async function act(d, what) {
+      try {
+        if (K.has()) await Pergamon.signAndPublish(`/api/draft/skills/${encodeURIComponent(d)}/${what}`, {});
+        else await Pergamon.postJSON(`/api/skills/${encodeURIComponent(d)}/${what}`, {});
+      } catch (err) { alert(err.message); }
+      loadMine(); load();
+    }
+
+    document.getElementById("filterForm").addEventListener("submit", e => { e.preventDefault(); load(); });
+
+    const form = document.getElementById("postForm");
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const out = document.getElementById("postResult");
+      out.textContent = "posting…";
+      const v = (id) => document.getElementById(id).value;
+      const body = { title: v("s_title"), category: v("s_cat"), level: v("s_level"),
+                     description: v("s_desc"), availability: v("s_avail"), rate: v("s_rate"),
+                     accepts: v("s_accepts"), radius_mi: v("s_radius"), location: v("s_loc"),
+                     cert: v("s_cert") };
+      try {
+        const data = K.has() ? await Pergamon.signAndPublish("/api/draft/skills", body)
+                             : await Pergamon.postJSON("/api/skills", body);
+        out.textContent = "posted. " + Object.entries(data.published_to)
+          .map(([u, x]) => `${x.ok ? "✓" : "✗"} ${u}`).join("  ");
+        form.reset();
+        loadMine(); load();
+      } catch (err) {
+        out.textContent = "error: " + err.message;
+      }
+    });
+
+    function whoami() {
+      const k = K.get();
+      const can = !!k || !!HUB;
+      document.getElementById("whoami").textContent = k
+        ? "Posting as " + (k.name || "you") + " (this device's key)."
+        : (HUB ? "Posting as the hub identity “" + HUB + "”." : "");
+      document.getElementById("postSection").classList.toggle("hidden", !can);
+      document.getElementById("mineSection").classList.toggle("hidden", !can);
+      document.getElementById("noKey").classList.toggle("hidden", can);
+      return can;
+    }
+
+    if (whoami()) loadMine();
+    load();
+  </script>
+</body>
+</html>

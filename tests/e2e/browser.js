@@ -78,6 +78,19 @@ async function person(browser, name) {
     await p.waitForFunction(() => document.getElementById("mine").textContent.includes("sold"), { timeout: 10000 });
     check("mark sold re-signed in browser", true);
 
+    // Skills: Ben offers one; Rosa finds it
+    await b.goto(BASE + "/skills", { waitUntil: "networkidle0" });
+    await b.type("#s_title", "Small engine repair");
+    await b.select("#s_cat", "repair");
+    await b.type("#s_avail", "weekends");
+    await b.click("#postForm button");
+    await b.waitForFunction(() => document.getElementById("postResult").textContent.startsWith("posted"), { timeout: 10000 });
+    await p.goto(BASE + "/skills", { waitUntil: "networkidle0" });
+    await p.type("#q", "engine");
+    await p.click("#filterForm button");
+    await p.waitForFunction(() => document.getElementById("skills").textContent.includes("Small engine repair"), { timeout: 10000 });
+    check("Ben's skill posted from his device and found by Rosa", true);
+
     // Receipt: Rosa records, Ben confirms
     await p.goto(BASE + "/receipts", { waitUntil: "networkidle0" });
     const myNpub = await p.$eval("#myNpub", (n) => n.textContent);

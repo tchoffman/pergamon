@@ -4,11 +4,6 @@ Ideas that came up while building, not yet agreed. Mark ✅ / ❌ / later.
 
 ## Finish soon
 
-- **Browser keys on classifieds + receipts pages.** Board and profile already sign
-  in the browser; classifieds and receipts pages still post as the hub identity.
-  The server endpoints (`/api/draft/*`, `/api/publish`) are built and tested —
-  only the page JavaScript is left.
-- **Skills web form.** Skills are CLI + bulletin only.
 - **Responsiveness signal** for reputation (needs DM read receipts).
 
 ## Grid-down network

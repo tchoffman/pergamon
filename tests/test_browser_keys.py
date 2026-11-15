@@ -90,6 +90,25 @@ def test_receipt_between_two_browsers(env):
     assert client.get(f"/api/reputation/{npub_a}").json()["confirmed_trades"] == 1
 
 
+def test_skill_post_and_close_from_browser(env):
+    client, relay = env
+    nsec, _, pub = generate_keypair()
+    r, signed, _ = _publish(client, "/api/draft/skills",
+                            {"pubkey": pub, "title": "Welding", "category": "metalwork",
+                             "accepts": "barter, silver", "radius_mi": "10"}, nsec)
+    assert r.status_code == 200, r.text
+    d = next(t[1] for t in signed["tags"] if t[0] == "d")
+    mine = client.get(f"/api/skills/mine?pubkey={pub}").json()["skills"]
+    assert [s["title"] for s in mine] == ["Welding"]
+    assert mine[0]["accepts"] == ["barter", "silver"]
+    assert [s["title"] for s in client.get("/api/skills?q=weld").json()["skills"]] == ["Welding"]
+    r, closed, _ = _publish(client, f"/api/draft/skills/{d}/close", {"pubkey": pub}, nsec)
+    assert r.status_code == 200 and ["status", "closed"] in closed["tags"]
+    assert client.get("/api/skills?q=weld").json()["skills"] == []
+    assert client.post("/api/draft/skills", json={"pubkey": pub, "title": "x",
+                                                  "category": "wizardry"}).status_code == 400
+
+
 def test_profile_from_browser(env):
     client, _ = env
     nsec, _, pub = generate_keypair()
@@ -124,7 +143,7 @@ def test_publish_rejects_bad_events(env):
 
 def test_pages_load_signing_scripts(env):
     client, _ = env
-    for page in ("/board", "/classifieds", "/receipts", "/identity", "/welcome"):
+    for page in ("/board", "/classifieds", "/receipts", "/identity", "/welcome", "/skills"):
         html = client.get(page).text
         assert "/static/vendor/noble-nostr.js" in html, page
         assert "/static/pergamon.js" in html, page
