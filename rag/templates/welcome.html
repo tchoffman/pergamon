@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pergamon — community network</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header><h1>Pergamon</h1>
+    <div class="status muted">Community network · works without the internet</div></header>
+  <main>
+    <p>You're connected to the local community network. There is no internet here — everything
+      below runs on a machine nearby.</p>
+    <div class="listing"><a href="/board"><strong>Community board</strong></a>
+      <div class="muted small">Local news, notices, events, lost &amp; found</div></div>
+    <div class="listing"><a href="/classifieds"><strong>Classifieds</strong></a>
+      <div class="muted small">Trade goods — offers and wanted posts</div></div>
+    <div class="listing"><a href="/"><strong>Ask the library</strong></a>
+      <div class="muted small">Questions answered from {{ status.zims }} offline reference collection(s)</div></div>
+    <div class="listing"><a href="/identity"><strong>Get an identity</strong></a>
+      <div class="muted small">Needed to post. Your key stays on this machine unless you export it.</div></div>
+    <p class="muted small">Tip: bookmark this page or add it to your home screen.</p>
+  </main>
+</body>
+</html>

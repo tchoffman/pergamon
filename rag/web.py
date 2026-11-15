@@ -523,3 +523,37 @@ def api_receipts_confirm(body: dict):
         raise HTTPException(400, str(e))
     return {"text": _rc.describe(rb, ident.hex_pub),
             "published_to": {u: {"ok": ok, "message": m} for u, (ok, m) in results.items()}}
+
+
+# ──────────────────────────── captive portal ────────────────────────────
+# When the hub's router answers every DNS query with this machine's IP,
+# phones joining the WiFi hit these OS connectivity probes. Redirecting
+# them makes iOS / Android / Windows / macOS pop up the Pergamon home page
+# as a "sign in to network" sheet. Harmless when DNS isn't redirected —
+# nothing requests these paths then.
+
+from fastapi.responses import RedirectResponse  # noqa: E402
+
+_PROBE_PATHS = (
+    "/hotspot-detect.html",          # Apple
+    "/library/test/success.html",    # Apple (older)
+    "/generate_204",                 # Android / Chrome
+    "/gen_204",                      # Android
+    "/connecttest.txt",              # Windows 10+
+    "/ncsi.txt",                     # Windows (older)
+    "/success.txt",                  # Firefox
+    "/canonical.html",               # Firefox
+)
+
+
+def _portal(request: Request):
+    return RedirectResponse(url="/welcome", status_code=302)
+
+
+for _p in _PROBE_PATHS:
+    app.add_api_route(_p, _portal, methods=["GET"], include_in_schema=False)
+
+
+@app.get("/welcome", response_class=HTMLResponse)
+def welcome(request: Request):
+    return templates.TemplateResponse(request, "welcome.html", {"status": _status()})
