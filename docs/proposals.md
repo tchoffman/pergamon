@@ -10,10 +10,14 @@ Ideas that came up while building, not yet agreed. Mark ✅ / ❌ / later.
   over HTTPS, so barcode scanning on `/food` and photo plant/mushroom ID (#12)
   are blocked at `http://192.168.x.x`. A one-time local certificate the host
   installs on household phones would unlock both.
-- **Corrections layer for old field guides.** The foraging shelf is 1880–1920
-  books; some "edible" species are now known toxic. A small curated list of
-  known reversals (e.g. *Gyromitra*, *Paxillus involutus*, *Tricholoma
-  equestre*) could be injected into answers whenever those names come up.
+- **Grow the curated foraging facts.** Six danger facts now get injected
+  (config/domains/foraging_facts.yaml) because live testing showed the 8B
+  model's own mycology is unreliable. Worth extending with a forager's review:
+  regional deadly look-alikes, and species the old guides call edible that are
+  now known toxic (*Paxillus involutus*, *Tricholoma equestre*, raw elderberry).
+- **Bigger model for foraging/medical questions.** On a machine with more RAM,
+  route high-stakes domains to a larger model even if everyday questions stay
+  on the fast one.
 - **"Verified" badge for names.** Show a check next to a poster's name when
   their NIP-05 handle resolves on a pergamon you trust, so look-alike names
   are harder to pass off.
