@@ -1,0 +1,88 @@
+# Curated danger facts for foraging questions.
+#
+# The local LLM's own mycology is not reliable (in testing, an 8B model
+# suggested "common mushroom" for a white-gilled, ringed mushroom — the death
+# cap pattern). When a question matches a trigger, the fact is injected ahead
+# of everything else and the model is told to state it first.
+#
+# A trigger matches when ALL words in one of its lists appear in the question
+# (case-insensitive, whole words; simple plural "s" allowed).
+#
+# Only add facts that are standard, uncontroversial field-guide safety
+# guidance. Keep each one short and practical.
+
+facts:
+  - id: amanita
+    triggers:
+      - [white, gill]
+      - [ring, stem]
+      - [ring, mushroom]
+      - [volva]
+      - [cup, base, mushroom]
+      - [death, cap]
+      - [destroying, angel]
+      - [amanita]
+    fact: >-
+      White gills together with a ring on the stem and/or a cup (volva) at the
+      base is the warning pattern for deadly Amanita species — death cap and
+      destroying angels — which cause most fatal mushroom poisonings. Symptoms
+      start 6–24 hours after eating, often seem to improve, then liver failure
+      follows. The cup is often buried: dig up the whole base before judging.
+      Treat any mushroom with this pattern as deadly.
+
+  - id: false-morel
+    triggers:
+      - [morel]
+      - [gyromitra]
+    fact: >-
+      False morels (Gyromitra) look like true morels and can be deadly.
+      Slice lengthwise: a true morel is hollow in one continuous chamber from
+      cap tip to stem base, and the cap is attached to the stem; false morels
+      are cottony or chambered inside or have a cap hanging free like a skirt.
+
+  - id: galerina
+    triggers:
+      - [little, brown, mushroom]
+      - [small, brown, mushroom]
+      - [lbm]
+      - [galerina]
+      - [mushroom, wood, brown]
+    fact: >-
+      Small brown mushrooms are among the hardest to identify, and Galerina
+      marginata — common on rotting wood — contains the same liver-destroying
+      toxins as the death cap. Do not eat little brown mushrooms.
+
+  - id: jack-o-lantern
+    triggers:
+      - [chanterelle]
+      - [jack, lantern]
+      - [orange, mushroom]
+    fact: >-
+      Jack-o'-lantern mushrooms (Omphalotus) resemble chanterelles and cause
+      severe vomiting and diarrhea. Chanterelles have blunt, forked false
+      ridges that run down the stem; jack-o'-lanterns have true, sharp,
+      knife-like gills and usually grow in clusters from wood or buried roots.
+
+  - id: puffball
+    triggers:
+      - [puffball]
+    fact: >-
+      Slice every puffball top to bottom. It must be pure, uniform white
+      inside like marshmallow. Any outline of a cap, gills, or stem means it is
+      the young "egg" stage of a mushroom — possibly a deadly Amanita.
+
+  - id: hemlock
+    triggers:
+      - [wild, carrot]
+      - [queen, anne]
+      - [hemlock]
+      - [wild, parsnip]
+      - [umbrella, flower]
+      - [wild, parsley]
+    fact: >-
+      Poison hemlock and water hemlock are among the most poisonous plants in
+      North America and look like wild carrot (Queen Anne's lace), parsnip, and
+      parsley — small water hemlock bites have killed adults. Poison hemlock
+      has a smooth stem with purple blotches and a musty smell; Queen Anne's
+      lace has a hairy stem. Never eat a wild plant from the carrot family
+      without expert, in-person identification.

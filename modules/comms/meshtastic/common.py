@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import ollama
 
 from rag.config import load_config
-from rag.domains import guard
+from rag.domains import frame_question, guard
 from rag.query import SYSTEM_PROMPT, _format_source, build_context, retrieve
 
 # Meshtastic messages cap around 240 bytes of payload. Leave headroom for
@@ -60,10 +60,10 @@ def ask(question: str, max_tokens_hint: int = 150) -> MeshReply:
 
     if hits:
         context, sources = build_context(hits, cfg["max_context_chars"])
-        user_prompt = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
+        user_prompt = f"CONTEXT:\n{context}\n\nQUESTION: {frame_question(question, guard(question, '')[1])}"
     else:
         sources = []
-        user_prompt = f"QUESTION: {question}"
+        user_prompt = f"QUESTION: {frame_question(question, guard(question, '')[1])}"
 
     short_hint = (
         "\n\nRespond in at most 2 sentences. This reply will be relayed over "

@@ -25,6 +25,9 @@ keywords:
   - hemlock
 system_prompt_tail: |
   SAFETY RULES FOR THIS QUESTION (foraging / identification):
+  - Do help. Explain what the described features suggest, which dangerous
+    species share them, and what else to check. Refusing to discuss
+    identification is not safer — the warnings are the point.
   - Never state or imply that a specific wild plant or mushroom is safe to eat.
   - Always name dangerous look-alikes when discussing any species.
   - If the CONTEXT has fewer than two independent sources, say so explicitly.

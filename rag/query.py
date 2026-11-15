@@ -10,7 +10,7 @@ from rich.markdown import Markdown
 from rich.rule import Rule
 
 from rag.config import load_config
-from rag.domains import guard
+from rag.domains import frame_question, guard
 
 console = Console()
 
@@ -70,16 +70,17 @@ def ask(question: str) -> int:
     cfg = load_config()
     hits = retrieve(cfg, question)
 
+    system, domains = guard(question, SYSTEM_PROMPT)
+    framed = frame_question(question, domains)
     if hits:
         context, sources = build_context(hits, cfg["max_context_chars"])
-        user_prompt = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
+        user_prompt = f"CONTEXT:\n{context}\n\nQUESTION: {framed}"
     else:
         context, sources = "", []
         user_prompt = (
-            f"(No corpus indexed yet — answering from general knowledge.)\n\nQUESTION: {question}"
+            f"(No corpus indexed yet — answering from general knowledge.)\n\nQUESTION: {framed}"
         )
 
-    system, domains = guard(question, SYSTEM_PROMPT)
     client_ollama = ollama.Client(host=cfg["ollama_host"])
     stream = client_ollama.chat(
         model=cfg["llm_model"],

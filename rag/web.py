@@ -24,7 +24,7 @@ from sse_starlette.sse import EventSourceResponse
 from fastapi import HTTPException
 
 from rag.config import REPO_ROOT, load_config
-from rag.domains import guard
+from rag.domains import frame_question, guard
 from rag.identity import (
     get_active,
     list_identities,
@@ -110,6 +110,7 @@ def _stream_rag(q: str, system: str, user_prefix: str, use_domain_guards: bool =
     hits = retrieve(cfg, q)
 
     guarded_system, domains = guard(q, system) if use_domain_guards else (system, [])
+    framed = frame_question(q, domains)
 
     async def event_gen():
         for d in domains:
@@ -119,10 +120,10 @@ def _stream_rag(q: str, system: str, user_prefix: str, use_domain_guards: bool =
                 label = _format_source(h["meta"])
                 yield {"event": "source", "data": f"[{i}] {label}"}
             context, _ = build_context(hits, cfg["max_context_chars"])
-            user_prompt = f"CONTEXT:\n{context}\n\n{user_prefix}: {q}"
+            user_prompt = f"CONTEXT:\n{context}\n\n{user_prefix}: {framed}"
         else:
             yield {"event": "source", "data": "(no corpus — answering from general knowledge)"}
-            user_prompt = f"{user_prefix}: {q}"
+            user_prompt = f"{user_prefix}: {framed}"
 
         client_ollama = ollama.Client(host=cfg["ollama_host"])
         stream = client_ollama.chat(
