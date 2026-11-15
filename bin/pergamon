@@ -18,6 +18,8 @@ Usage:
   pergamon web [--port N]      Launch the web UI (default port 8090)
   pergamon mesh mock           Mesh-radio mock mode (stdin → chunked answer)
   pergamon mesh listen         Listen for Meshtastic DMs over USB
+  pergamon mesh info           Show the attached radio + nodes it can hear
+  pergamon mesh send <node> "text"   One-off DM (or ^all to broadcast)
   pergamon ledger ...          Record-keeping: list / show / add / rm / query
   pergamon services ...        LAN services: list / up / down / restart / status / logs
   pergamon identity ...        Nostr keys: list / create / use / show / export / import
@@ -149,8 +151,10 @@ case "$cmd" in
     case "$sub" in
       mock)   exec "$VENV_PY" -m modules.comms.meshtastic.mock "$@" ;;
       listen) exec "$VENV_PY" -m modules.comms.meshtastic.listen "$@" ;;
+      info)   exec "$VENV_PY" -m modules.comms.meshtastic.tools info "$@" ;;
+      send)   exec "$VENV_PY" -m modules.comms.meshtastic.tools send "$@" ;;
       *)
-        echo "Usage: pergamon mesh {mock|listen}" >&2
+        echo "Usage: pergamon mesh {mock|listen|info|send <node> \"text\"}" >&2
         exit 2
         ;;
     esac
