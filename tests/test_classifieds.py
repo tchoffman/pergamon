@@ -202,3 +202,24 @@ def test_soft_cap(tmp_path, monkeypatch):
     with pytest.raises(_c.SoftCapExceeded):
         _c.post_listing(_Ident, nsec, title="one too many", description="")
     _c.post_listing(_Ident, nsec, force=True, title="forced", description="")
+
+
+def test_find_matches_pairs_opposite_sides():
+    me = _pub()
+    them = _pub()
+    my_want = summarize(build_listing_event(me, "Need firewood", "", side="looking-for",
+                                            hashtags=["oak"]))
+    my_offer = summarize(build_listing_event(me, "Eggs", "", side="offering"))
+    their_offer = summarize(build_listing_event(them, "Seasoned oak firewood", "", side="offering"))
+    their_want = summarize(build_listing_event(them, "Fresh eggs wanted", "", side="looking-for"))
+    unrelated = summarize(build_listing_event(them, "Bicycle", "", side="offering"))
+    my_own_offer = summarize(build_listing_event(me, "Firewood", "", side="offering"))
+    expired = summarize(build_listing_event(them, "Firewood cheap", "", ttl_days=-1))
+
+    m = _c.find_matches([my_want, my_offer],
+                        [their_offer, their_want, unrelated, my_own_offer, expired])
+    pairs = {(x["mine"]["title"], x["theirs"]["title"]) for x in m}
+    assert pairs == {("Need firewood", "Seasoned oak firewood"), ("Eggs", "Fresh eggs wanted")}
+    best = m[0]
+    assert best["theirs"]["title"] == "Seasoned oak firewood"  # shares firewood + oak
+    assert best["shared"] == ["firewood", "oak"]

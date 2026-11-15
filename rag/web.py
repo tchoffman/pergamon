@@ -311,6 +311,16 @@ def api_classifieds_mine():
             "soft_cap": _cl.SOFT_CAP}
 
 
+@app.get("/api/classifieds/matches")
+def api_classifieds_matches():
+    ident = get_active()
+    if not ident:
+        raise HTTPException(400, "no active identity")
+    mine = _cl.my_live_listings(ident.hex_pub)
+    others = _cl.search_infos(_cl.fetch_listings(_load_relays_from_config(), limit=500)) if mine else []
+    return {"matches": _cl.find_matches(mine, others)}
+
+
 def _num(v):
     return float(v) if v not in (None, "") else None
 

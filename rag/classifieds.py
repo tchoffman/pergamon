@@ -285,6 +285,40 @@ def search_infos(events: list[Event], query: str = "", side: str | None = None) 
     return out
 
 
+_STOP = {"the", "and", "for", "with", "fresh", "need", "want", "wanted", "have", "some",
+         "any", "good", "new", "used", "lot", "lbs", "per", "each", "from", "you", "our"}
+
+
+def _tokens(info: dict) -> set[str]:
+    words = (info["title"] + " " + " ".join(info.get("hashtags") or [])).lower()
+    out = set()
+    for w in "".join(c if c.isalnum() else " " for c in words).split():
+        if len(w) < 3 or w in _STOP:
+            continue
+        out.add(w[:-1] if w.endswith("s") and len(w) > 3 else w)  # crude plural fold
+    return out
+
+
+def find_matches(mine: list[dict], others: list[dict]) -> list[dict]:
+    """Pair each of my live listings with live listings on the opposite side.
+
+    Returns [{"mine": info, "theirs": info, "shared": [words]}], best first.
+    """
+    out = []
+    for m in mine:
+        if not m["is_live"]:
+            continue
+        mt = _tokens(m)
+        for o in others:
+            if o["pubkey"] == m["pubkey"] or o["side"] == m["side"] or not o["is_live"]:
+                continue
+            shared = mt & _tokens(o)
+            if shared:
+                out.append({"mine": m, "theirs": o, "shared": sorted(shared)})
+    out.sort(key=lambda x: (-len(x["shared"]), -x["theirs"]["created_at"]))
+    return out
+
+
 # ────────────────────────────── CLI ────────────────────────────────
 
 def _print_listing(info: dict) -> None:
@@ -425,6 +459,26 @@ def _cmd_republish(argv: list[str], status: str | None) -> int:
     return 0 if ok else 1
 
 
+def _cmd_matches(argv: list[str]) -> int:
+    ident, _ = _active_or_fail()
+    if not ident:
+        return 1
+    mine = my_live_listings(ident.hex_pub)
+    if not mine:
+        console.print("[yellow]you have no live listings to match against[/yellow]")
+        return 0
+    others = search_infos(fetch_listings(_load_relays_from_config(), limit=500))
+    matches = find_matches(mine, others)
+    if not matches:
+        console.print("[dim]no matches yet — try again after the next sync[/dim]")
+        return 0
+    for m in matches:
+        console.print(f"[bold]{m['mine']['title']}[/bold] ↔ {m['theirs']['title']}  "
+                      f"[dim]({', '.join(m['shared'])}; ref {m['theirs']['d']}, "
+                      f"from {m['theirs']['pubkey'][:12]}…)[/dim]")
+    return 0
+
+
 def _cmd_mine(argv: list[str]) -> int:
     ident, _ = _active_or_fail()
     if not ident:
@@ -513,6 +567,7 @@ USAGE = """Usage:
   pergamon classified list [--offers|--wanted] [--tag X] [--limit N] [--all]
   pergamon classified search "query"
   pergamon classified mine                 your listings + expiry
+  pergamon classified matches              offers that fit your wants, and vice versa
   pergamon classified renew <id>           push expiry out another 14 days
   pergamon classified close <id>           mark sold / no longer wanted"""
 
@@ -526,6 +581,7 @@ def main(argv: list[str]) -> int:
     if cmd == "list":   return _cmd_list(rest)
     if cmd == "search": return _cmd_search(rest)
     if cmd == "mine":   return _cmd_mine(rest)
+    if cmd == "matches": return _cmd_matches(rest)
     if cmd == "renew":  return _cmd_republish(rest, status=None)
     if cmd == "close":  return _cmd_republish(rest, status="sold")
     console.print(f"unknown command: {cmd}\n{USAGE}")

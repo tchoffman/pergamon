@@ -59,6 +59,11 @@
     </section>
 
     <section>
+      <h2>Possible matches</h2>
+      <div id="matches"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section>
       <h2>My listings</h2>
       <div id="mine"><p class="muted">Loading…</p></div>
     </section>
@@ -216,8 +221,27 @@
       });
     }
 
+    async function loadMatches() {
+      const box = document.getElementById("matches");
+      if (!box) return;
+      const r = await fetch("/api/classifieds/matches");
+      if (!r.ok) { box.textContent = ""; return; }
+      const data = await r.json();
+      box.innerHTML = "";
+      if (!data.matches.length) {
+        box.appendChild(el("p", "muted", "No matches for your live listings yet."));
+        return;
+      }
+      data.matches.forEach(m => {
+        const c = card(m.theirs);
+        c.insertBefore(el("div", "muted small", "matches your “" + m.mine.title + "” (" + m.shared.join(", ") + ")"), c.firstChild);
+        box.appendChild(c);
+      });
+    }
+
     loadListings();
     loadMine();
+    loadMatches();
   </script>
 </body>
 </html>
