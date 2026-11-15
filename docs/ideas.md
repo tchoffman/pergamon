@@ -322,6 +322,41 @@ shortlist generator, not a determination.
 (issue #11) is dangerous. Ship content and photo-ID only after
 safety prompts are in place.
 
+## Libraries, lending, and labor
+
+Three interlocking features (issues #13, #14, #15) turn the Pergamon
+network into a community coordination layer, not just a market for goods.
+
+**Library + lending ledger (#13):** track what you own and are willing
+to share — books, tools, digital files, seeds, media. Two ledger
+schemas (library + loans) on the shipped primitive. Discovery via a new
+Nostr kind 30406 "catalog" event, addressable and replaceable. Tools
+specifically need richer condition fields (serial, sharpness, fuel,
+required_skill, usage_limits) — covered in a comment on #13.
+
+**File transfer tiers (#14):** honest about LoRa capacity. Metadata
+over Meshtastic, Reticulum for 1–10 MB, **sneakernet** (physical USB
+hand-off) for anything bigger. Explicitly out of scope: torrent-over-
+LoRa for files >1 MB — the channel-capacity math doesn't work. 1 GB
+ZIM at 3 kbps sustained = 31 days of continuous transmission.
+Introduces a "sneakernet voucher" workflow (QR slip) for request/fulfill
+tracking of bulk transfers.
+
+**Skills + services profile (#15):** classifieds cover goods, libraries
+cover objects — this covers labor and expertise. New Nostr kind 30407
+"service listing" per npub: title, category (tools/medical/carpentry/
+teaching/...), skill_level, price/accepts, availability, radius, cert
+(self-claim). Reliability scoring applies the same way via service
+trade receipts. Same freshness pressure.
+
+**All three share:**
+- The reliability framework from #9 — completion, freshness,
+  responsiveness are universal across goods / rentals / services
+- The delegation primitive from #4 — institutions (clinics, workshops)
+  can delegate to staff keys
+- The identity backbone — your npub is the thread that ties your
+  library + services + classifieds + trade history into one reputation
+
 ## Marketplace freshness + reliability
 
 The single hardest problem in a distributed marketplace: **stale listings
