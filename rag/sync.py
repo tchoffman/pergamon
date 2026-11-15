@@ -17,8 +17,8 @@ Every event is signature-checked on import and on fetch, so a courier can
 carry a bundle without being able to alter or forge anyone's posts. Relays
 de-duplicate by event id, so syncing the same data twice is harmless.
 
-What gets synced: community-board posts, classifieds, library catalogs,
-skill/service listings, and profiles. Not DMs (kind 4) — those should go to
+What gets synced: community-board posts, classifieds, trade receipts,
+library catalogs, skill/service listings, and profiles. Not DMs (kind 4) — those should go to
 their recipient directly.
 """
 from __future__ import annotations
@@ -42,7 +42,7 @@ from rag.nostr import (
 console = Console()
 
 BOARD_TAG = "pergamon-board"
-SYNC_KINDS = [0, 30402, 30406, 30407]  # profiles, classifieds, catalogs, skills
+SYNC_KINDS = [0, 30402, 30405, 30406, 30407]  # profiles, classifieds, receipts, catalogs, skills
 DEFAULT_DAYS = 60
 DEFAULT_LIMIT = 5000
 

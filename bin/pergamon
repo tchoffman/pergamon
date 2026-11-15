@@ -24,6 +24,8 @@ Usage:
   pergamon nostr ...           Sign + publish events (post, relays)
   pergamon classified ...      Classifieds (post, list, search, mine, renew, close)
   pergamon board ...           Community board (post, list)
+  pergamon receipt ...         Two-party trade receipts (draft, confirm, list)
+  pergamon reputation <npub>   What this pergamon has seen of someone
   pergamon skills ...          Skills + services you offer (post, find, renew)
   pergamon library ...         Lend + borrow books/tools/seeds; share catalog
   pergamon sync ...            Gossip with other pergamons; USB bundles (pull/push/export/import)
@@ -175,6 +177,18 @@ case "$cmd" in
     require_venv
     cd "$REPO_ROOT"
     exec "$VENV_PY" -m rag.nostr "$@"
+    ;;
+
+  receipt)
+    require_venv
+    cd "$REPO_ROOT"
+    exec "$VENV_PY" -m rag.receipts "$@"
+    ;;
+
+  reputation)
+    require_venv
+    cd "$REPO_ROOT"
+    exec "$VENV_PY" -m rag.reputation "$@"
     ;;
 
   skills)

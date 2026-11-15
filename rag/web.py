@@ -443,3 +443,73 @@ def identity_card():
     if not ident:
         raise HTTPException(400, "no active identity")
     return HTMLResponse(_cards.card_html(ident))
+
+
+# ──────────────────────── receipts + reputation ────────────────────────
+
+from rag import receipts as _rc  # noqa: E402
+from rag import reputation as _rep  # noqa: E402
+
+
+@app.get("/api/reputation/{who}")
+def api_reputation(who: str):
+    try:
+        r = asyncio.run(_rep.acompute(_load_relays_from_config(), who))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {**r, "summary": _rep.summary_line(r)}
+
+
+@app.get("/receipts", response_class=HTMLResponse)
+def receipts_page(request: Request):
+    active = get_active()
+    return templates.TemplateResponse(request, "receipts.html",
+                                      {"active": active.meta() if active else None})
+
+
+@app.get("/api/receipts")
+def api_receipts():
+    ident = get_active()
+    if not ident:
+        raise HTTPException(400, "no active identity")
+    events = asyncio.run(_rc.afetch_for(_load_relays_from_config(), ident.hex_pub))
+    confirmed = {b["id"] for b in _rc.confirmed_receipts(events)}
+    rows = []
+    for b in sorted(_rc._load_mine().values(), key=lambda b: b["date"], reverse=True):
+        if ident.hex_pub not in b["parties"]:
+            continue
+        other = next(p for p in b["parties"] if p != ident.hex_pub)
+        rows.append({"id": b["id"], "date": b["date"], "with": other,
+                     "text": _rc.describe(b, ident.hex_pub),
+                     "confirmed": b["id"] in confirmed,
+                     "code": _rc.encode_code(b)})
+    return {"receipts": rows}
+
+
+@app.post("/api/receipts")
+def api_receipts_draft(body: dict):
+    ident = get_active()
+    if not ident:
+        raise HTTPException(400, "no active identity")
+    try:
+        rb, code, results = _rc.draft(ident, load_nsec(ident.name), body.get("with") or "",
+                                      body.get("gave") or "", body.get("got") or "",
+                                      body.get("listing") or None, body.get("note") or None)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"code": code, "qr": _cards.qr_svg(code, scale=4),
+            "text": _rc.describe(rb, ident.hex_pub),
+            "published_to": {u: {"ok": ok, "message": m} for u, (ok, m) in results.items()}}
+
+
+@app.post("/api/receipts/confirm")
+def api_receipts_confirm(body: dict):
+    ident = get_active()
+    if not ident:
+        raise HTTPException(400, "no active identity")
+    try:
+        rb, results = _rc.confirm(ident, load_nsec(ident.name), body.get("code") or "")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"text": _rc.describe(rb, ident.hex_pub),
+            "published_to": {u: {"ok": ok, "message": m} for u, (ok, m) in results.items()}}

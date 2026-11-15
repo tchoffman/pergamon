@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pergamon · Receipts</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Pergamon</h1>
+    <nav class="status">
+      <a href="/">Ask</a><span>·</span>
+      <a href="/board">Board</a><span>·</span>
+      <a href="/classifieds">Classifieds</a><span>·</span>
+      <a href="/receipts" class="muted">Receipts</a><span>·</span>
+      <a href="/identity">Identity</a>
+    </nav>
+  </header>
+
+  <main>
+  {% if not active %}
+    <p class="warn">Create an identity on the <a href="/identity">Identity</a> page first.</p>
+  {% else %}
+    <section>
+      <h2>Record a trade</h2>
+      <p class="muted">After a trade, one person records it here and shows the other person the
+        code. A trade only counts toward either person's reputation once both have confirmed it.</p>
+      <form id="draftForm">
+        <div class="row"><label for="d_with">Traded with (their npub)</label>
+          <input id="d_with" placeholder="npub1…" required /></div>
+        <div class="row"><label for="d_gave">I gave</label>
+          <input id="d_gave" placeholder="0.3 oz silver" required /></div>
+        <div class="row"><label for="d_got">I got</label>
+          <input id="d_got" placeholder="20 lb apples" required /></div>
+        <div class="row"><label for="d_listing">Listing ref (optional)</label>
+          <input id="d_listing" /></div>
+        <button type="submit">Record + get code</button>
+      </form>
+      <div id="draftResult"></div>
+    </section>
+
+    <section>
+      <h2>Confirm a trade someone recorded</h2>
+      <form id="confirmForm">
+        <div class="row"><label for="c_code">Receipt code</label>
+          <textarea id="c_code" rows="3" required></textarea></div>
+        <button type="submit">Confirm</button>
+      </form>
+      <div id="confirmResult" class="muted"></div>
+    </section>
+
+    <section>
+      <h2>My receipts</h2>
+      <div id="mine"><p class="muted">Loading…</p></div>
+    </section>
+  {% endif %}
+  </main>
+
+  <footer><span class="muted">Offline library · everything runs locally.</span></footer>
+
+  <script>
+    const el = (tag, cls, text) => {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text !== undefined) n.textContent = text;
+      return n;
+    };
+    const post = (url, body) => fetch(url, {
+      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body),
+    });
+
+    async function loadMine() {
+      const box = document.getElementById("mine");
+      if (!box) return;
+      const r = await fetch("/api/receipts");
+      if (!r.ok) { box.textContent = ""; return; }
+      const data = await r.json();
+      box.innerHTML = "";
+      if (!data.receipts.length) { box.appendChild(el("p", "muted", "No receipts yet.")); return; }
+      data.receipts.forEach(x => {
+        const c = el("div", "listing");
+        c.appendChild(el("span", x.confirmed ? "badge offer" : "badge want",
+                         x.confirmed ? "CONFIRMED" : "WAITING"));
+        c.appendChild(el("span", "", " " + x.text));
+        c.appendChild(el("div", "muted small", x.date + " · with " + x.with.slice(0, 12) + "…"));
+        if (!x.confirmed) {
+          const code = el("div", "mono small", x.code);
+          c.appendChild(code);
+        }
+        box.appendChild(c);
+      });
+    }
+
+    const draftForm = document.getElementById("draftForm");
+    if (draftForm) draftForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const out = document.getElementById("draftResult");
+      out.textContent = "recording…";
+      const r = await post("/api/receipts", {
+        with: document.getElementById("d_with").value,
+        gave: document.getElementById("d_gave").value,
+        got: document.getElementById("d_got").value,
+        listing: document.getElementById("d_listing").value,
+      });
+      const data = await r.json();
+      out.innerHTML = "";
+      if (!r.ok) { out.appendChild(el("p", "warn", data.detail || r.statusText)); return; }
+      out.appendChild(el("p", "", "Recorded: " + data.text + ". Have the other person scan this or copy the code:"));
+      const qr = el("div", "");
+      qr.innerHTML = data.qr;  // server-generated SVG
+      out.appendChild(qr);
+      out.appendChild(el("div", "mono small", data.code));
+      draftForm.reset();
+      loadMine();
+    });
+
+    const confirmForm = document.getElementById("confirmForm");
+    if (confirmForm) confirmForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const out = document.getElementById("confirmResult");
+      const r = await post("/api/receipts/confirm", {code: document.getElementById("c_code").value});
+      const data = await r.json();
+      out.textContent = r.ok ? "Confirmed: " + data.text : "error: " + (data.detail || r.statusText);
+      if (r.ok) { confirmForm.reset(); loadMine(); }
+    });
+
+    loadMine();
+  </script>
+</body>
+</html>

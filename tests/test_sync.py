@@ -45,7 +45,7 @@ def test_bundle_rejects_tampered_and_garbage(tmp_path):
 def test_sync_filters_cover_board_and_catalog_kinds():
     fs = sync.sync_filters(since=123)
     assert fs[0]["kinds"] == [1] and fs[0]["#t"] == ["pergamon-board"]
-    assert {0, 30402, 30406, 30407} <= set(fs[1]["kinds"])
+    assert {0, 30402, 30405, 30406, 30407} <= set(fs[1]["kinds"])
     assert all(f["since"] == 123 for f in fs)
 
 

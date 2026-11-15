@@ -13,6 +13,7 @@
       <a href="/">Ask</a><span>·</span>
       <a href="/board">Board</a><span>·</span>
       <a href="/classifieds" class="muted">Classifieds</a><span>·</span>
+      <a href="/receipts">Receipts</a><span>·</span>
       <a href="/identity">Identity</a>
     </nav>
   </header>
@@ -104,7 +105,19 @@
       meta.push(daysLeft(l));
       meta.push("from " + l.pubkey.slice(0, 12) + "…");
       c.appendChild(el("div", "muted small", meta.filter(Boolean).join("  ·  ")));
+      const rep = el("div", "muted small", "");
+      c.appendChild(rep);
+      reputation(l.pubkey).then(t => { if (t) rep.textContent = "reputation: " + t; });
       return c;
+    }
+
+    const repCache = {};
+    function reputation(pubkey) {
+      if (!repCache[pubkey]) {
+        repCache[pubkey] = fetch("/api/reputation/" + pubkey)
+          .then(r => r.ok ? r.json() : null).then(d => d && d.summary).catch(() => null);
+      }
+      return repCache[pubkey];
     }
 
     async function loadListings() {
