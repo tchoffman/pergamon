@@ -32,8 +32,9 @@ def _matches(ev: dict, f: dict) -> bool:
 
 
 class MiniRelay:
-    def __init__(self):
+    def __init__(self, port: int = 0):
         self.events: dict[str, dict] = {}
+        self._want_port = port
         self.loop = asyncio.new_event_loop()
         self.port = None
         self._server = None
@@ -66,7 +67,7 @@ class MiniRelay:
         asyncio.set_event_loop(self.loop)
 
         async def start():
-            self._server = await websockets.serve(self._handler, "127.0.0.1", 0)
+            self._server = await websockets.serve(self._handler, "127.0.0.1", self._want_port)
             self.port = self._server.sockets[0].getsockname()[1]
             self._ready.set()
 

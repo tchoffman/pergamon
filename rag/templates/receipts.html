@@ -21,16 +21,18 @@
   </header>
 
   <main>
-  {% if not active %}
-    <p class="warn">Create an identity on the <a href="/identity">Identity</a> page first.</p>
-  {% else %}
+    <p class="warn hidden" id="noKey">To record trades, <a href="/welcome">create a key on this device</a>.</p>
+    <div id="hasKey">
     <section>
       <h2>Record a trade</h2>
-      <p class="muted">After a trade, one person records it here and shows the other person the
-        code. A trade only counts toward either person's reputation once both have confirmed it.</p>
+      <p class="muted"><span id="whoami"></span> After a trade, one person records it here and shows
+        the other person the code. A trade only counts toward either person's reputation once both
+        have confirmed it.</p>
+      <p class="muted small">Your npub (give this to the person you traded with):
+        <span class="mono" id="myNpub"></span></p>
       <form id="draftForm">
         <div class="row"><label for="d_with">Traded with (their npub)</label>
-          <input id="d_with" placeholder="npub1…" required /></div>
+          <input id="d_with" placeholder="npub1…" required autocapitalize="off" spellcheck="false" /></div>
         <div class="row"><label for="d_gave">I gave</label>
           <input id="d_gave" placeholder="0.3 oz silver" required /></div>
         <div class="row"><label for="d_got">I got</label>
@@ -46,7 +48,7 @@
       <h2>Confirm a trade someone recorded</h2>
       <form id="confirmForm">
         <div class="row"><label for="c_code">Receipt code</label>
-          <textarea id="c_code" rows="3" required></textarea></div>
+          <textarea id="c_code" rows="3" required autocapitalize="off" spellcheck="false"></textarea></div>
         <button type="submit">Confirm</button>
       </form>
       <div id="confirmResult" class="muted"></div>
@@ -56,26 +58,39 @@
       <h2>My receipts</h2>
       <div id="mine"><p class="muted">Loading…</p></div>
     </section>
-  {% endif %}
+    </div>
   </main>
 
   <footer><span class="muted">Offline library · everything runs locally.</span></footer>
 
   <script>
+    const HUB = {{ {"name": active.display_name or active.name, "npub": active.npub} | tojson if active else "null" }};
+    const K = Pergamon.Keys;
     const el = (tag, cls, text) => {
       const n = document.createElement(tag);
       if (cls) n.className = cls;
       if (text !== undefined) n.textContent = text;
       return n;
     };
-    const post = (url, body) => fetch(url, {
-      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body),
-    });
+    const pubParam = () => (K.has() ? "?pubkey=" + K.pubkey() : "");
+    const send = (draftUrl, serverUrl, body) =>
+      K.has() ? Pergamon.signAndPublish(draftUrl, body) : Pergamon.postJSON(serverUrl, body);
+
+    function whoami() {
+      const k = K.get();
+      const can = !!k || !!HUB;
+      document.getElementById("noKey").classList.toggle("hidden", can);
+      document.getElementById("hasKey").classList.toggle("hidden", !can);
+      document.getElementById("whoami").textContent = k
+        ? "Recording as " + (k.name || "you") + " (this device's key)."
+        : (HUB ? "Recording as the hub identity “" + HUB.name + "”." : "");
+      document.getElementById("myNpub").textContent = k ? K.npub() : (HUB ? HUB.npub : "");
+      return can;
+    }
 
     async function loadMine() {
       const box = document.getElementById("mine");
-      if (!box) return;
-      const r = await fetch("/api/receipts");
+      const r = await fetch("/api/receipts" + pubParam());
       if (!r.ok) { box.textContent = ""; return; }
       const data = await r.json();
       box.innerHTML = "";
@@ -86,48 +101,57 @@
                          x.confirmed ? "CONFIRMED" : "WAITING"));
         c.appendChild(el("span", "", " " + x.text));
         c.appendChild(el("div", "muted small", x.date + " · with " + x.with.slice(0, 12) + "…"));
-        if (!x.confirmed) {
-          const code = el("div", "mono small", x.code);
-          c.appendChild(code);
-        }
+        if (!x.confirmed) c.appendChild(el("div", "mono small", x.code));
         box.appendChild(c);
       });
     }
 
     const draftForm = document.getElementById("draftForm");
-    if (draftForm) draftForm.addEventListener("submit", async e => {
+    draftForm.addEventListener("submit", async e => {
       e.preventDefault();
       const out = document.getElementById("draftResult");
       out.textContent = "recording…";
-      const r = await post("/api/receipts", {
-        with: document.getElementById("d_with").value,
-        gave: document.getElementById("d_gave").value,
-        got: document.getElementById("d_got").value,
-        listing: document.getElementById("d_listing").value,
-      });
-      const data = await r.json();
+      let data;
+      try {
+        data = await send("/api/draft/receipt", "/api/receipts", {
+          with: document.getElementById("d_with").value,
+          gave: document.getElementById("d_gave").value,
+          got: document.getElementById("d_got").value,
+          listing: document.getElementById("d_listing").value,
+        });
+      } catch (err) {
+        out.innerHTML = "";
+        out.appendChild(el("p", "warn", err.message));
+        return;
+      }
+      const d = data.draft || data;
       out.innerHTML = "";
-      if (!r.ok) { out.appendChild(el("p", "warn", data.detail || r.statusText)); return; }
-      out.appendChild(el("p", "", "Recorded: " + data.text + ". Have the other person scan this or copy the code:"));
+      out.appendChild(el("p", "", "Recorded: " + d.text + ". Have the other person scan this or copy the code:"));
       const qr = el("div", "");
-      qr.innerHTML = data.qr;  // server-generated SVG
+      qr.innerHTML = d.qr;  // server-generated SVG
       out.appendChild(qr);
-      out.appendChild(el("div", "mono small", data.code));
+      out.appendChild(el("div", "mono small", d.code));
       draftForm.reset();
       loadMine();
     });
 
     const confirmForm = document.getElementById("confirmForm");
-    if (confirmForm) confirmForm.addEventListener("submit", async e => {
+    confirmForm.addEventListener("submit", async e => {
       e.preventDefault();
       const out = document.getElementById("confirmResult");
-      const r = await post("/api/receipts/confirm", {code: document.getElementById("c_code").value});
-      const data = await r.json();
-      out.textContent = r.ok ? "Confirmed: " + data.text : "error: " + (data.detail || r.statusText);
-      if (r.ok) { confirmForm.reset(); loadMine(); }
+      try {
+        const data = await send("/api/draft/receipt/confirm", "/api/receipts/confirm",
+                                {code: document.getElementById("c_code").value});
+        out.textContent = "Confirmed: " + (data.draft || data).text;
+        confirmForm.reset();
+        loadMine();
+      } catch (err) {
+        out.textContent = "error: " + err.message;
+      }
     });
 
-    loadMine();
+    document.addEventListener("pergamon-key-changed", () => { if (whoami()) loadMine(); });
+    if (whoami()) loadMine();
   </script>
 </body>
 </html>

@@ -724,3 +724,9 @@ def api_publish(body: dict):
         _rc._remember(_json.loads(ev.content))
     return {"id": ev.id,
             "published_to": {u: {"ok": ok, "message": m} for u, (ok, m) in results.items()}}
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    from fastapi.responses import Response
+    return Response(status_code=204)

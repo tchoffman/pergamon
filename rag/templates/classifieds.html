@@ -34,10 +34,9 @@
       <div id="listings"><p class="muted">Loading…</p></div>
     </section>
 
-    {% if active %}
-    <section>
+    <section id="postSection">
       <h2>Post a listing</h2>
-      <p class="muted">Posting as <strong>{{ active.name }}</strong>. Listings expire after
+      <p class="muted"><span id="whoami"></span> Listings expire after
         14 days unless renewed — keeping them fresh is what makes you reliable.</p>
       <form id="postForm">
         <div class="row">
@@ -65,13 +64,11 @@
       <div id="matches"><p class="muted">Loading…</p></div>
     </section>
 
-    <section>
+    <section id="mineSection">
       <h2>My listings</h2>
       <div id="mine"><p class="muted">Loading…</p></div>
     </section>
-    {% else %}
-    <p class="warn">Create an identity on the <a href="/identity">Identity</a> page to post.</p>
-    {% endif %}
+    <p class="warn hidden" id="noKey">To post, <a href="/welcome">create a key on this device</a>.</p>
   </main>
 
   <footer><span class="muted">Offline library · everything runs locally.</span></footer>
@@ -151,7 +148,7 @@
     async function loadMine() {
       const box = document.getElementById("mine");
       if (!box) return;
-      const r = await fetch("/api/classifieds/mine");
+      const r = await fetch("/api/classifieds/mine" + pubParam());
       if (!r.ok) { box.textContent = ""; return; }
       const data = await r.json();
       box.innerHTML = "";
@@ -174,8 +171,13 @@
     }
 
     async function act(d, what) {
-      const r = await fetch(`/api/classifieds/${encodeURIComponent(d)}/${what}`, {method: "POST"});
-      if (!r.ok) alert((await r.json()).detail || r.statusText);
+      try {
+        if (Pergamon.Keys.has()) {
+          await Pergamon.signAndPublish(`/api/draft/classifieds/${encodeURIComponent(d)}/${what}`, {});
+        } else {
+          await Pergamon.postJSON(`/api/classifieds/${encodeURIComponent(d)}/${what}`, {});
+        }
+      } catch (err) { alert(err.message); }
       loadMine(); loadListings();
     }
 
@@ -200,24 +202,21 @@
           location: document.getElementById("p_loc").value,
           hashtags: document.getElementById("p_tags").value,
         };
-        let r = await fetch("/api/classifieds", {
-          method: "POST", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify(body),
-        });
-        if (r.status === 409) {
-          const msg = (await r.json()).detail;
-          if (!confirm(msg + "\n\nPost anyway?")) { out.textContent = "not posted"; return; }
+        const send = (b) => Pergamon.Keys.has()
+          ? Pergamon.signAndPublish("/api/draft/classifieds", b)
+          : Pergamon.postJSON("/api/classifieds", b);
+        let data;
+        try {
+          data = await send(body);
+        } catch (err) {
+          if (err.status !== 409) { out.textContent = "error: " + err.message; return; }
+          if (!confirm(err.message + "\n\nPost anyway?")) { out.textContent = "not posted"; return; }
           body.force = true;
-          r = await fetch("/api/classifieds", {
-            method: "POST", headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(body),
-          });
+          try { data = await send(body); }
+          catch (err2) { out.textContent = "error: " + err2.message; return; }
         }
-        const data = await r.json();
-        if (!r.ok) { out.textContent = "error: " + (data.detail || r.statusText); return; }
-        const pub = Object.entries(data.published_to)
+        out.textContent = "posted. " + Object.entries(data.published_to)
           .map(([u, v]) => `${v.ok ? "✓" : "✗"} ${u}`).join("  ");
-        out.textContent = "posted. " + pub;
         postForm.reset();
         loadMine(); loadListings();
       });
@@ -226,7 +225,7 @@
     async function loadMatches() {
       const box = document.getElementById("matches");
       if (!box) return;
-      const r = await fetch("/api/classifieds/matches");
+      const r = await fetch("/api/classifieds/matches" + pubParam());
       if (!r.ok) { box.textContent = ""; return; }
       const data = await r.json();
       box.innerHTML = "";
@@ -241,9 +240,27 @@
       });
     }
 
+    const HUB = {{ (active.display_name or active.name) | tojson if active else "null" }};
+    function pubParam() {
+      const pk = Pergamon.Keys.pubkey();
+      return pk ? "?pubkey=" + pk : "";
+    }
+    function whoami() {
+      const k = Pergamon.Keys.get();
+      const can = !!k || !!HUB;
+      document.getElementById("whoami").textContent = k
+        ? "Posting as " + (k.name || "you") + " (this device's key)."
+        : (HUB ? "Posting as the hub identity “" + HUB + "”." : "");
+      for (const id of ["postSection", "mineSection", "matches"]) {
+        const n = document.getElementById(id);
+        if (n) (id === "matches" ? n.parentElement : n).classList.toggle("hidden", !can);
+      }
+      document.getElementById("noKey").classList.toggle("hidden", can);
+    }
+
+    whoami();
     loadListings();
-    loadMine();
-    loadMatches();
+    if (Pergamon.Keys.has() || HUB) { loadMine(); loadMatches(); }
   </script>
 </body>
 </html>
