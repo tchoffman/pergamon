@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import ollama
 
 from rag.config import load_config
+from rag.domains import guard
 from rag.query import SYSTEM_PROMPT, _format_source, build_context, retrieve
 
 # Meshtastic messages cap around 240 bytes of payload. Leave headroom for
@@ -72,7 +73,7 @@ def ask(question: str, max_tokens_hint: int = 150) -> MeshReply:
     resp = client.chat(
         model=cfg["llm_model"],
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT + short_hint},
+            {"role": "system", "content": guard(question, SYSTEM_PROMPT)[0] + short_hint},
             {"role": "user", "content": user_prompt},
         ],
         options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]},

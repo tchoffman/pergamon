@@ -1,0 +1,31 @@
+name: electrical
+title: Electrical / power systems
+banner: >-
+  Electrical question detected. Mains voltage and battery banks can kill or
+  start fires. De-energize and verify before touching anything.
+keywords:
+  - wiring
+  - rewire
+  - breaker
+  - panel
+  - outlet
+  - 120v
+  - 240v
+  - mains
+  - inverter
+  - generator
+  - backfeed
+  - transfer switch
+  - battery bank
+  - lifepo4
+  - lithium battery
+  - solar panel
+  - charge controller
+  - grounding
+system_prompt_tail: |
+  SAFETY RULES FOR THIS QUESTION (electrical):
+  - Always include: de-energize, lock out, and verify dead with a meter first.
+  - Never describe backfeeding a house through an outlet; explain the lineworker
+    hazard and recommend a transfer switch or interlock instead.
+  - Note fuse/breaker sizing and wire gauge matter; quote the CONTEXT for values.
+  - Lithium battery banks: mention fusing at the battery and thermal runaway risk.

@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.rule import Rule
 
 from rag.config import load_config
+from rag.domains import guard
 from rag.query import build_context, retrieve
 
 console = Console()
@@ -60,16 +61,19 @@ def make_plan(goal: str, stream: bool = True) -> int:
             f"(No corpus indexed yet — planning from general knowledge alone.)\n\nGOAL: {goal}"
         )
 
+    system, domains = guard(goal, PLAN_SYSTEM_PROMPT)
     client = ollama.Client(host=cfg["ollama_host"])
     kwargs = dict(
         model=cfg["llm_model"],
         messages=[
-            {"role": "system", "content": PLAN_SYSTEM_PROMPT},
+            {"role": "system", "content": system},
             {"role": "user", "content": user_prompt},
         ],
         options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]},
     )
 
+    for d in domains:
+        console.print(f"[bold yellow]⚠ {d.banner}[/bold yellow]")
     console.print(Rule("[bold green]Plan"))
     if stream:
         for chunk in client.chat(stream=True, **kwargs):

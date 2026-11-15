@@ -116,6 +116,13 @@
       if (eventSource) eventSource.close();
       eventSource = new EventSource("/" + mode + "?q=" + encodeURIComponent(q));
 
+      eventSource.addEventListener("notice", (ev) => {
+        const p = document.createElement("p");
+        p.className = "warn";
+        p.textContent = "⚠ " + ev.data;
+        answer.insertBefore(p, answerBody);
+      });
+
       eventSource.addEventListener("source", (ev) => {
         sourcesHeader.classList.remove("hidden");
         const li = document.createElement("li");
@@ -147,6 +154,7 @@
 
       answerBody.textContent = "";
       sources.innerHTML = "";
+      answer.querySelectorAll("p.warn").forEach((n) => n.remove());
       sourcesHeader.classList.add("hidden");
       answer.classList.remove("hidden");
 

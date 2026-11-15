@@ -1,0 +1,42 @@
+name: medical
+title: Medical / first aid
+banner: >-
+  Medical question detected. Pergamon is a reference, not a clinician. If this
+  is an emergency and any help is reachable, get it now.
+keywords:
+  - bleeding
+  - wound
+  - fracture
+  - broken bone
+  - burn
+  - infection
+  - fever
+  - dose
+  - dosage
+  - medication
+  - antibiotic
+  - pregnant
+  - pregnancy
+  - labor
+  - childbirth
+  - seizure
+  - unconscious
+  - not breathing
+  - cpr
+  - allergic
+  - anaphylaxis
+  - poison
+  - poisoning
+  - overdose
+  - stroke
+  - heart attack
+  - hypothermia
+  - dehydration
+system_prompt_tail: |
+  SAFETY RULES FOR THIS QUESTION (medical):
+  - Lead with any sign that means "get emergency help now" if relevant.
+  - Give practical first-aid steps from the CONTEXT; say when the CONTEXT is thin.
+  - For medication doses, quote the source and note that weight, age, and
+    pregnancy change dosing. Never invent a dose.
+  - Note that resource-limited settings change what is possible, and say what
+    to watch for that means the situation is getting worse.

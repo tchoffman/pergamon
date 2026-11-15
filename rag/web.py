@@ -24,6 +24,7 @@ from sse_starlette.sse import EventSourceResponse
 from fastapi import HTTPException
 
 from rag.config import REPO_ROOT, load_config
+from rag.domains import guard
 from rag.identity import (
     get_active,
     list_identities,
@@ -108,7 +109,11 @@ def _stream_rag(q: str, system: str, user_prefix: str):
     cfg = load_config()
     hits = retrieve(cfg, q)
 
+    guarded_system, domains = guard(q, system)
+
     async def event_gen():
+        for d in domains:
+            yield {"event": "notice", "data": d.banner}
         if hits:
             for i, h in enumerate(hits, 1):
                 label = _format_source(h["meta"])
@@ -123,7 +128,7 @@ def _stream_rag(q: str, system: str, user_prefix: str):
         stream = client_ollama.chat(
             model=cfg["llm_model"],
             messages=[
-                {"role": "system", "content": system},
+                {"role": "system", "content": guarded_system},
                 {"role": "user", "content": user_prompt},
             ],
             stream=True,

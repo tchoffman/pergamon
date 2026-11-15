@@ -10,6 +10,7 @@ from rich.markdown import Markdown
 from rich.rule import Rule
 
 from rag.config import load_config
+from rag.domains import guard
 
 console = Console()
 
@@ -78,17 +79,20 @@ def ask(question: str) -> int:
             f"(No corpus indexed yet — answering from general knowledge.)\n\nQUESTION: {question}"
         )
 
+    system, domains = guard(question, SYSTEM_PROMPT)
     client_ollama = ollama.Client(host=cfg["ollama_host"])
     stream = client_ollama.chat(
         model=cfg["llm_model"],
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system},
             {"role": "user", "content": user_prompt},
         ],
         stream=True,
         options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]},
     )
 
+    for d in domains:
+        console.print(f"[bold yellow]⚠ {d.banner}[/bold yellow]")
     console.print(Rule("[bold green]Pergamon"))
     buf = []
     for chunk in stream:

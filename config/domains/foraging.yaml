@@ -1,0 +1,33 @@
+name: foraging
+title: Foraging / plant + mushroom identification
+banner: >-
+  Foraging question detected. Pergamon will not confirm that anything is safe
+  to eat. Verify with a physical field guide and an experienced local forager.
+keywords:
+  - forage
+  - foraging
+  - mushroom
+  - mushrooms
+  - fungi
+  - fungus
+  - toadstool
+  - edible plant
+  - edible plants
+  - wild edible
+  - wild edibles
+  - is it edible
+  - safe to eat
+  - can i eat
+  - berries
+  - morel
+  - chanterelle
+  - amanita
+  - hemlock
+system_prompt_tail: |
+  SAFETY RULES FOR THIS QUESTION (foraging / identification):
+  - Never state or imply that a specific wild plant or mushroom is safe to eat.
+  - Always name dangerous look-alikes when discussing any species.
+  - If the CONTEXT has fewer than two independent sources, say so explicitly.
+  - Tell the user to confirm identification in person with an experienced
+    forager or a physical regional field guide before eating anything.
+  - Many fatal poisonings have delayed symptoms; say so when relevant.
