@@ -38,39 +38,67 @@ Skip `make setup` and `make all` uses the **default** preset (~5 GB, fits a 16 G
 
 `make setup` writes `config/install.local.yaml` (gitignored) — you can also edit it by hand. `make plan` shows what would be fetched without downloading. `make all` is idempotent — re-running only does work that's missing. See `make help`.
 
+## What it does
+
+**The library** — offline wikis and books, plus a local LLM that answers with citations.
+
+| | |
+|---|---|
+| Ask / plan / search | `pergamon ask`, `plan`, `search`, or the web UI at `/` |
+| Offline wikis | Wikipedia, Wikivoyage, iFixit, … via Kiwix (`pergamon serve`) |
+| Books | Survival manuals, a foraging + plant ID shelf, Gutenberg classics |
+| Safety rules | Foraging, medical, and electrical questions get extra rules and a warning |
+
+**The community network** — what a neighborhood uses when the internet is gone. Runs on the
+Pergamon's WiFi; phones need only a browser.
+
+| | |
+|---|---|
+| Community board | Local news, events, lost & found (`/board`) |
+| Classifieds | Offers and wanted posts, 14-day expiry, matches (`/classifieds`) |
+| Skills + services | Who can fix, build, teach, or treat (`/skills`) |
+| Library + lending | Books, tools, seeds you'll lend (`pergamon library`) |
+| Trade receipts + reputation | Both sides confirm; reputation is plain counts (`/receipts`) |
+| Identity | Each phone makes its own key; nothing secret leaves the device |
+| Paper on-ramp | Printed bulletin, drop-box forms, member cards (`/bulletin`, `/forms`) |
+| Town to town | `pergamon sync` over any link, or a USB stick carried by courier |
+| Mesh radio | Ask the library over Meshtastic (`pergamon mesh`) |
+
+**At home** — food inventory with "what can I cook?" (`/food`), calendar, ebook library,
+password vault (Docker services).
+
 ## Documentation
 
-- **[docs/getting-started.md](docs/getting-started.md)** — step-by-step walkthrough for first-time install. Start here if this is your first time.
-- **[docs/commands.md](docs/commands.md)** — every subcommand and its flags, as a reference.
-- **[docs/identity.md](docs/identity.md)** — Nostr keys, NIP-05, backup + recovery.
-- **[docs/hardware.md](docs/hardware.md)** — dev-box vs cage-machine planning.
-- **[docs/runbook.md](docs/runbook.md)** — how to use Pergamon day-to-day and off-grid.
-- **[docs/quick-reference.md](docs/quick-reference.md)** — printable survival cheatsheet to keep with the machine.
-- **[docs/ideas.md](docs/ideas.md)** — backlog of features not yet built.
-- **[docs/roadmap.md](docs/roadmap.md)** — the three planned modules (comms, services, compendium).
+- **[docs/getting-started.md](docs/getting-started.md)** — first-time install, step by step. Start here.
+- **[docs/commands.md](docs/commands.md)** — every command, flag, and web page.
+- **[docs/grid-down.md](docs/grid-down.md)** — running a Pergamon as a neighborhood hub.
+- **[docs/mesh-test-plan.md](docs/mesh-test-plan.md)** — two-radio hardware checklist.
+- **[docs/identity.md](docs/identity.md)** — keys, backup, recovery.
+- **[docs/hardware.md](docs/hardware.md)** — dev box vs. long-term "cage machine".
+- **[docs/quick-reference.md](docs/quick-reference.md)** — printable survival cheatsheet.
+- **[docs/proposals.md](docs/proposals.md)** — ideas awaiting a yes/no.
+- **[docs/ideas.md](docs/ideas.md)** — the longer backlog.
 
-## What's inside the "app"
+## Under the hood
 
-| Component       | Purpose                                             | Tool                  |
-|-----------------|-----------------------------------------------------|-----------------------|
-| LLM runtime     | Local inference, Metal-accelerated on Apple Silicon | [Ollama](https://ollama.com) |
-| Primary model   | General Q&A + RAG synthesis                         | `llama3.1:8b-instruct-q4_K_M` |
-| Embedding model | Semantic search over corpus                         | `nomic-embed-text`    |
-| Vector store    | Retrieves relevant passages for RAG                 | [Chroma](https://www.trychroma.com) |
-| Offline wikis   | Wikipedia, iFixit, etc. (ZIM format)                | [kiwix-serve](https://kiwix.org) |
-| CLI             | `pergamon ask`, `pergamon serve`, `pergamon status` | Python + bash         |
+| Component | Tool |
+|---|---|
+| LLM + embeddings | [Ollama](https://ollama.com) — `llama3.1:8b` + `nomic-embed-text` by default (`make setup` to change) |
+| Vector store | [Chroma](https://www.trychroma.com) |
+| Offline wikis | [Kiwix](https://kiwix.org) ZIM files |
+| Community data | [Nostr](https://nostr.com) events on a local relay — signed, so they can travel anywhere |
+| Browser signing | `@noble/curves` (vendored, works offline) |
+| Web | FastAPI + plain HTML/JS, no build step |
+| Tests | `make test` (unit + real-WebSocket integration), `make e2e` (headless Chrome, two users) |
 
 ## Hardware
 
 Dev target: M4 MacBook Air, 16GB RAM, ~80GB free disk. See [docs/hardware.md](docs/hardware.md) for the long-term "cage machine" recommendations and faraday considerations.
 
-## Roadmap
+## Status
 
-See [docs/roadmap.md](docs/roadmap.md) for planned modules:
-
-- **Comms** — radio / Meshtastic / Reticulum integration so pergamons can talk to each other without internet
-- **Survival compendium** — a curated, deeper offline library (medical, food, repair, agriculture, …)
-- **In-home services** — calendar, photos, notes, media, home automation hosted on the same box
+Built and tested in software; not yet tried on real radios or a real router-based
+captive portal. Open work is tracked in [GitHub issues](https://github.com/tchoffman/pergamon/issues).
 
 ## Why "Pergamon"?
 
