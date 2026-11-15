@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Pergamon drop-box forms</title>
+  <style>
+    @page { size: letter; margin: 0.4in; }
+    body { font-family: Georgia, "Times New Roman", serif; color: #000; background: #fff;
+           margin: 0 auto; max-width: 7.7in; font-size: 10.5pt; }
+    .slip { border: 1.5px solid #000; padding: 0.12in 1.05in 0.12in 0.16in; margin-bottom: 0.14in;
+            break-inside: avoid; position: relative; }
+    .slip h2 { font-size: 13pt; margin: 0 0 0.04in; letter-spacing: 0.03em; }
+    .slip .hint { font-size: 8.5pt; margin-bottom: 0.08in; }
+    .qr { position: absolute; top: 0.1in; right: 0.12in; text-align: center; font-size: 7pt; }
+    .qr svg { width: 0.75in; height: 0.75in; display: block; }
+    .line { display: flex; gap: 0.08in; align-items: flex-end; margin: 0.09in 0; }
+    .line label { white-space: nowrap; font-size: 9.5pt; }
+    .line .fill { flex: 1; border-bottom: 1px solid #000; height: 0.2in; }
+    .box { border: 1px solid #000; height: 0.62in; margin-top: 0.04in; }
+    .tick { font-size: 10pt; margin: 0.06in 0; }
+    .tick span { margin-right: 0.18in; white-space: nowrap; }
+    .who { font-size: 8.5pt; border-top: 1px dashed #000; margin-top: 0.08in; padding-top: 0.05in; }
+    .cut { text-align: center; font-size: 7pt; color: #555; margin: -0.08in 0 0.06in; }
+    .noprint { font-family: system-ui, sans-serif; background: #ffe; border: 1px solid #cc9;
+               padding: 0.5em; margin: 0.5em 0; }
+    .pagebreak { break-after: page; }
+    @media print { .noprint { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="noprint">Print these and keep a stack next to the drop box. Each slip has a QR code
+    that tells the host which kind it is. Members can staple their member card to any slip
+    instead of writing their name. <a href="/board">Back</a></div>
+
+  {% macro who() %}
+  <div class="who">Name: ______________________ &nbsp; or attach member card &nbsp;☐
+    &nbsp; Date: __________ &nbsp; Host use: entered ☐ by ____</div>
+  {% endmacro %}
+
+  <div class="slip">
+    <div class="qr">{{ qr['board'] | safe }}board</div>
+    <h2>BOARD NOTICE</h2>
+    <div class="hint">Goes on the community board and the printed bulletin. Signed with your name.</div>
+    <div class="tick"><span>☐ News</span><span>☐ Notice</span><span>☐ Event</span><span>☐ Help</span><span>☐ Lost &amp; found</span><span>☐ Warning</span></div>
+    <div class="box"></div>
+    <div class="line"><label>Where (optional)</label><div class="fill"></div></div>
+    {{ who() }}
+  </div>
+  <div class="cut">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -</div>
+
+  <div class="slip">
+    <div class="qr">{{ qr['listing'] | safe }}listing</div>
+    <h2>FOR TRADE / WANTED</h2>
+    <div class="hint">Lasts 14 days unless you renew it (use the "still available" slip).</div>
+    <div class="tick"><span>☐ I HAVE this (offer)</span><span>☐ I NEED this (wanted)</span></div>
+    <div class="line"><label>What</label><div class="fill"></div><label>How much</label><div class="fill" style="max-width:1.4in"></div></div>
+    <div class="line"><label>Price: oz silver</label><div class="fill" style="max-width:0.8in"></div><label>or $</label><div class="fill" style="max-width:0.8in"></div><label>Will take:</label>
+      <span class="tick"><span>☐ silver</span><span>☐ barter</span><span>☐ labor</span><span>☐ cash</span></span></div>
+    <div class="line"><label>Details</label><div class="fill"></div></div>
+    <div class="line"><label>Where / pick-up</label><div class="fill"></div></div>
+    {{ who() }}
+  </div>
+  <div class="cut">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -</div>
+
+  <div class="slip">
+    <div class="qr">{{ qr['update'] | safe }}update</div>
+    <h2>STILL AVAILABLE? / SOLD</h2>
+    <div class="hint">Copy the <em>ref</em> code from the bulletin. One slip can cover several listings.</div>
+    <div class="line"><label>ref</label><div class="fill"></div><span class="tick"><span>☐ still available</span><span>☐ sold / done</span></span></div>
+    <div class="line"><label>ref</label><div class="fill"></div><span class="tick"><span>☐ still available</span><span>☐ sold / done</span></span></div>
+    <div class="line"><label>ref</label><div class="fill"></div><span class="tick"><span>☐ still available</span><span>☐ sold / done</span></span></div>
+    {{ who() }}
+  </div>
+
+  <div class="pagebreak"></div>
+
+  <div class="slip">
+    <div class="qr">{{ qr['receipt'] | safe }}receipt</div>
+    <h2>TRADE RECORD</h2>
+    <div class="hint">Both people sign. A trade counts toward each person's reputation only when both have
+      confirmed it — signing here asks the host to confirm it for you.</div>
+    <div class="line"><label>Person A</label><div class="fill"></div><label>gave</label><div class="fill"></div></div>
+    <div class="line"><label>Person B</label><div class="fill"></div><label>gave</label><div class="fill"></div></div>
+    <div class="line"><label>Listing ref (optional)</label><div class="fill" style="max-width:1.6in"></div><label>Date</label><div class="fill" style="max-width:1.2in"></div></div>
+    <div class="line"><label>Signature A</label><div class="fill"></div><label>Signature B</label><div class="fill"></div></div>
+    <div class="who">Host use: A entered ☐ &nbsp; B confirmed ☐ &nbsp; by ____</div>
+  </div>
+  <div class="cut">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -</div>
+
+  <div class="slip">
+    <div class="qr">{{ qr['skill'] | safe }}skill</div>
+    <h2>SKILL OR SERVICE I CAN OFFER</h2>
+    <div class="hint">Shown on the bulletin for 60 days.</div>
+    <div class="line"><label>What I can do</label><div class="fill"></div></div>
+    <div class="tick"><span>☐ learning</span><span>☐ apprentice</span><span>☐ journeyman</span><span>☐ master</span></div>
+    <div class="line"><label>When I'm available</label><div class="fill"></div><label>Will travel (mi)</label><div class="fill" style="max-width:0.6in"></div></div>
+    <div class="line"><label>Rate / will take</label><div class="fill"></div></div>
+    <div class="line"><label>Training / certification</label><div class="fill"></div></div>
+    {{ who() }}
+  </div>
+  <div class="cut">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -</div>
+
+  <div class="slip">
+    <div class="qr">{{ qr['member'] | safe }}member</div>
+    <h2>NEW MEMBER</h2>
+    <div class="hint">The host makes you an identity and prints your member cards. Your posts will be signed
+      with it. Keep your card; it holds only your public key.</div>
+    <div class="line"><label>Name to show neighbors</label><div class="fill"></div></div>
+    <div class="line"><label>How to find you (road, farm, landmark)</label><div class="fill"></div></div>
+    <div class="who">Host use: identity created ☐ name ____________ &nbsp; cards printed ☐</div>
+  </div>
+</body>
+</html>

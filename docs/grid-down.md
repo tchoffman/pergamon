@@ -88,7 +88,9 @@ host's own, not a member's.
 
 ## 4. The daily routine (host)
 
-1. **Morning:** empty the drop box. For each slip, post it on the person's
+1. **Morning:** empty the drop box (blank slips: print `/forms` — board
+   notice, for trade / wanted, still available / sold, trade record, skill,
+   new member). For each slip, post it on the person's
    behalf — board posts (`/board`), listings (`/classifieds`), or
    confirmations ("still available" → **Renew** on their listing).
 2. **Print the bulletin:** open `/bulletin` and print. It shows live offers,

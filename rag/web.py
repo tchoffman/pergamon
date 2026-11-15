@@ -822,3 +822,16 @@ def api_skills_republish(d: str, action: str):
     results = _cl.publish(ev, _load_relays_from_config())
     return {"skill": _sk.summarize(ev),
             "published_to": {u: {"ok": ok, "message": m} for u, (ok, m) in results.items()}}
+
+
+# ─────────────────────────── paper drop-box forms ───────────────────────────
+
+FORM_KINDS = ("board", "listing", "update", "receipt", "skill", "member")
+
+
+@app.get("/forms", response_class=HTMLResponse)
+def forms_page(request: Request):
+    """Printable slips for the drop box. Each QR encodes pergamon-form:<kind>:v1
+    so a future scanner can route slips automatically."""
+    qr = {k: _cards.qr_svg(f"pergamon-form:{k}:v1", scale=2) for k in FORM_KINDS}
+    return templates.TemplateResponse(request, "forms.html", {"qr": qr})
