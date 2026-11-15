@@ -6,6 +6,21 @@ Ideas that came up while building, not yet agreed. Mark ✅ / ❌ / later.
 
 - **Responsiveness signal** for reputation (needs DM read receipts).
 
+- **HTTPS on the hub (local certificate).** Phone browsers only allow the camera
+  over HTTPS, so barcode scanning on `/food` and photo plant/mushroom ID (#12)
+  are blocked at `http://192.168.x.x`. A one-time local certificate the host
+  installs on household phones would unlock both.
+- **Corrections layer for old field guides.** The foraging shelf is 1880–1920
+  books; some "edible" species are now known toxic. A small curated list of
+  known reversals (e.g. *Gyromitra*, *Paxillus involutus*, *Tricholoma
+  equestre*) could be injected into answers whenever those names come up.
+- **"Verified" badge for names.** Show a check next to a poster's name when
+  their NIP-05 handle resolves on a pergamon you trust, so look-alike names
+  are harder to pass off.
+- **Hub roles.** Today the web UI can't tell the host from a guest. A host
+  PIN for host-only actions (posting paper slips as a member, food, settings)
+  would make shared hubs safer.
+
 ## Grid-down network
 
 - **"Come sync" mesh beacon.** A pergamon broadcasts a tiny LoRa message when it
