@@ -298,8 +298,9 @@ Each service's `README.md` has its own first-time-setup walkthrough.
 | `/.well-known/nostr.json` | NIP-05 verification |
 
 Phones that have created a key on `/welcome` sign their own posts; the
-private key stays in that browser. Without a device key, pages post as the
-machine's active identity.
+private key stays in that browser. Posting as the machine's own identity
+(and `/food`) works only on the machine itself, unless `hub: {trust_lan: true}`
+is set in `config/install.local.yaml` for a household network.
 
 ## Config files cheat sheet
 

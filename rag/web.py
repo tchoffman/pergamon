@@ -159,7 +159,7 @@ async def plan(q: str):
 def identity_page(request: Request):
     """Simple HTML page for viewing + switching + editing identity."""
     idents = list_identities()
-    active = get_active()
+    active = _active_for(request)
     return templates.TemplateResponse(
         request,
         "identity.html",
@@ -183,6 +183,7 @@ def api_identity_active():
 
 @app.post("/api/identity/use")
 async def api_identity_use(request: Request):
+    _host_only(request)
     body = await request.json()
     name = body.get("name")
     if not name:
@@ -197,6 +198,7 @@ async def api_identity_use(request: Request):
 
 @app.post("/api/identity/profile")
 async def api_identity_profile(request: Request):
+    _host_only(request)
     """Publish a NIP-01 kind-0 metadata event for the active identity.
 
     Body (any subset): {display_name, about, picture, nip05, website, lud16}
@@ -278,6 +280,35 @@ def _is_hex_pub(v: str | None) -> bool:
     return bool(v) and len(v) == 64 and all(c in "0123456789abcdef" for c in v)
 
 
+_LOCAL_HOSTS = ("127.0.0.1", "::1", "localhost", "testclient")
+
+
+def _local_cfg() -> dict:
+    from rag.install_config import INSTALL_LOCAL_PATH, load_yaml
+    return load_yaml(INSTALL_LOCAL_PATH) if INSTALL_LOCAL_PATH.exists() else {}
+
+
+def _is_host(request: Request) -> bool:
+    """True for requests from this machine, or from anywhere when the owner set
+    hub: {trust_lan: true} (a home network where everyone is household)."""
+    host = request.client.host if request.client else ""
+    if host in _LOCAL_HOSTS:
+        return True
+    return ((_local_cfg().get("hub") or {}).get("trust_lan")) is True
+
+
+def _host_only(request: Request) -> None:
+    if not _is_host(request):
+        raise HTTPException(403, "This action signs with the hub's own identity, so it only works "
+                                 "on the hub machine. On your phone, create your own key on "
+                                 "/welcome and post with it.")
+
+
+def _active_for(request: Request):
+    """The machine's identity, but only for the host — guests never post as it."""
+    return get_active() if _is_host(request) else None
+
+
 def _with_authors(rows: list[dict], relays: list[str] | None = None) -> list[dict]:
     """Attach a human 'author' name (from kind-0 profiles) to each row."""
     from rag import profiles as _pf
@@ -289,14 +320,14 @@ def _with_authors(rows: list[dict], relays: list[str] | None = None) -> list[dic
     return rows
 
 
-def _whose(pubkey: str | None) -> str:
-    """The pubkey a request acts for: a browser-held key if given, else the
-    machine's active identity."""
+def _whose(pubkey: str | None, request: Request | None = None) -> str:
+    """The pubkey a request acts for: a browser-held key if given, else (for
+    the host only) the machine's active identity."""
     if pubkey:
         if not _is_hex_pub(pubkey):
             raise HTTPException(400, "pubkey must be 64 lowercase hex characters")
         return pubkey
-    ident = get_active()
+    ident = _active_for(request) if request is not None else get_active()
     if not ident:
         raise HTTPException(400, "no identity — create a key on this device or on /identity")
     return ident.hex_pub
@@ -311,7 +342,7 @@ from rag import classifieds as _cl  # noqa: E402
 
 @app.get("/classifieds", response_class=HTMLResponse)
 def classifieds_page(request: Request):
-    active = get_active()
+    active = _active_for(request)
     return templates.TemplateResponse(
         request, "classifieds.html",
         {"active": active.meta() if active else None, "soft_cap": _cl.SOFT_CAP},
@@ -328,8 +359,8 @@ def api_classifieds(q: str = "", side: str | None = None, tag: str | None = None
 
 
 @app.get("/api/classifieds/mine")
-def api_classifieds_mine(pubkey: str | None = None):
-    me = _whose(pubkey)
+def api_classifieds_mine(request: Request, pubkey: str | None = None):
+    me = _whose(pubkey, request)
     rows = [_cl.summarize(_cl._event_from_json(r)) for r in _cl._load_mine().values()
             if r["pubkey"] == me]
     rows.sort(key=lambda r: r["created_at"], reverse=True)
@@ -338,8 +369,8 @@ def api_classifieds_mine(pubkey: str | None = None):
 
 
 @app.get("/api/classifieds/matches")
-def api_classifieds_matches(pubkey: str | None = None):
-    mine = _cl.my_live_listings(_whose(pubkey))
+def api_classifieds_matches(request: Request, pubkey: str | None = None):
+    mine = _cl.my_live_listings(_whose(pubkey, request))
     others = _cl.search_infos(_cl.fetch_listings(_load_relays_from_config(), limit=500)) if mine else []
     return {"matches": _cl.find_matches(mine, others)}
 
@@ -349,7 +380,8 @@ def _num(v):
 
 
 @app.post("/api/classifieds")
-def api_classifieds_post(body: dict):
+def api_classifieds_post(request: Request, body: dict):
+    _host_only(request)
     ident = get_active()
     if not ident:
         raise HTTPException(400, "no active identity — create one on /identity")
@@ -395,12 +427,14 @@ def _republish(d: str, status: str | None):
 
 
 @app.post("/api/classifieds/{d}/renew")
-def api_classifieds_renew(d: str):
+def api_classifieds_renew(request: Request, d: str):
+    _host_only(request)
     return _republish(d, None)
 
 
 @app.post("/api/classifieds/{d}/close")
-def api_classifieds_close(d: str):
+def api_classifieds_close(request: Request, d: str):
+    _host_only(request)
     return _republish(d, "sold")
 
 
@@ -411,7 +445,7 @@ from rag import board as _bd  # noqa: E402
 
 @app.get("/board", response_class=HTMLResponse)
 def board_page(request: Request):
-    active = get_active()
+    active = _active_for(request)
     return templates.TemplateResponse(
         request, "board.html",
         {"active": active.meta() if active else None, "categories": _bd.CATEGORIES},
@@ -427,7 +461,8 @@ def api_board(category: str | None = None, days: float = _bd.DEFAULT_DAYS):
 
 
 @app.post("/api/board")
-def api_board_post(body: dict):
+def api_board_post(request: Request, body: dict):
+    _host_only(request)
     ident = get_active()
     if not ident:
         raise HTTPException(400, "no active identity — create one on /identity")
@@ -497,14 +532,14 @@ def api_reputation(who: str):
 
 @app.get("/receipts", response_class=HTMLResponse)
 def receipts_page(request: Request):
-    active = get_active()
+    active = _active_for(request)
     return templates.TemplateResponse(request, "receipts.html",
                                       {"active": active.meta() if active else None})
 
 
 @app.get("/api/receipts")
-def api_receipts(pubkey: str | None = None):
-    me = _whose(pubkey)
+def api_receipts(request: Request, pubkey: str | None = None):
+    me = _whose(pubkey, request)
     events = asyncio.run(_rc.afetch_for(_load_relays_from_config(), me))
     confirmed = {b["id"] for b in _rc.confirmed_receipts(events)}
     rows = []
@@ -520,7 +555,8 @@ def api_receipts(pubkey: str | None = None):
 
 
 @app.post("/api/receipts")
-def api_receipts_draft(body: dict):
+def api_receipts_draft(request: Request, body: dict):
+    _host_only(request)
     ident = get_active()
     if not ident:
         raise HTTPException(400, "no active identity")
@@ -536,7 +572,8 @@ def api_receipts_draft(body: dict):
 
 
 @app.post("/api/receipts/confirm")
-def api_receipts_confirm(body: dict):
+def api_receipts_confirm(request: Request, body: dict):
+    _host_only(request)
     ident = get_active()
     if not ident:
         raise HTTPException(400, "no active identity")
@@ -769,7 +806,7 @@ def _skill_fields(body: dict) -> dict:
 
 @app.get("/skills", response_class=HTMLResponse)
 def skills_page(request: Request):
-    active = get_active()
+    active = _active_for(request)
     return templates.TemplateResponse(request, "skills.html", {
         "active": active.meta() if active else None,
         "categories": _sk.CATEGORIES, "levels": _sk.LEVELS})
@@ -782,8 +819,8 @@ def api_skills(q: str = "", category: str | None = None):
 
 
 @app.get("/api/skills/mine")
-def api_skills_mine(pubkey: str | None = None):
-    me = _whose(pubkey)
+def api_skills_mine(request: Request, pubkey: str | None = None):
+    me = _whose(pubkey, request)
     rows = [_sk.summarize(_Event(**{k: r[k] for k in ("kind", "content", "pubkey", "tags",
                                                      "created_at", "id", "sig")}))
             for r in _sk._load_mine().values() if r["pubkey"] == me]
@@ -813,7 +850,8 @@ def draft_skill_republish(d: str, action: str, body: dict):
 
 
 @app.post("/api/skills")
-def api_skills_post(body: dict):
+def api_skills_post(request: Request, body: dict):
+    _host_only(request)
     ident = get_active()
     if not ident:
         raise HTTPException(400, "no identity — create a key on this device")
@@ -826,7 +864,8 @@ def api_skills_post(body: dict):
 
 
 @app.post("/api/skills/{d}/{action}")
-def api_skills_republish(d: str, action: str):
+def api_skills_republish(request: Request, d: str, action: str):
+    _host_only(request)
     ident = get_active()
     if not ident or action not in ("renew", "close"):
         raise HTTPException(400, "no identity or unknown action")
@@ -872,12 +911,7 @@ def _food_allowed(request: Request) -> None:
     """Food data is household-private. Allow it from this machine only, unless
     install.local.yaml sets food: {lan_access: true} (fine on a home network,
     not on a community hub)."""
-    host = request.client.host if request.client else ""
-    if host in ("127.0.0.1", "::1", "localhost", "testclient"):
-        return
-    from rag.install_config import INSTALL_LOCAL_PATH, load_yaml
-    cfg = load_yaml(INSTALL_LOCAL_PATH) if INSTALL_LOCAL_PATH.exists() else {}
-    if ((cfg.get("food") or {}).get("lan_access")) is True:
+    if _is_host(request) or ((_local_cfg().get("food") or {}).get("lan_access")) is True:
         return
     raise HTTPException(403, "The food inventory is only available on this machine. "
                              "To use it from household phones, set food: {lan_access: true} "

@@ -82,9 +82,12 @@ just scan the QR code or type the URL.
 - Anyone who wants full control runs their own Pergamon and syncs with the
   hub.
 
-The terminal's "active" identity is what the web UI uses when a browser has
-no key of its own — so on a shared hub, set the active identity to the
-host's own, not a member's.
+Guests on the WiFi always post with their own device key. Actions that sign
+with the machine's own identity (posting a paper slip on someone's behalf,
+switching the active identity, the food inventory) only work on the hub
+machine itself. On a home network where everyone is household, the owner
+can allow them from any device with `hub: {trust_lan: true}` in
+`config/install.local.yaml` — never on a community hub.
 
 ## 4. The daily routine (host)
 
