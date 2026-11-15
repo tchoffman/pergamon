@@ -374,6 +374,11 @@ def _cmd_delete(argv: list[str]) -> int:
     return 0
 
 
+def _cmd_card(argv: list[str]) -> int:
+    from rag.cards import main as cards_main
+    return cards_main(argv)
+
+
 def main(argv: list[str]) -> int:
     if not argv or argv[0] in ("list", "ls"):
         _print_list()
@@ -387,6 +392,7 @@ def main(argv: list[str]) -> int:
         "export": _cmd_export,
         "import": _cmd_import,
         "delete": _cmd_delete,
+        "card":   _cmd_card,
     }
     if cmd in dispatch:
         return dispatch[cmd](rest)
@@ -398,7 +404,8 @@ def main(argv: list[str]) -> int:
         "  pergamon identity use <name>\n"
         "  pergamon identity export <name> [--path FILE]\n"
         "  pergamon identity import <name> <file>\n"
-        "  pergamon identity delete <name>"
+        "  pergamon identity delete <name>\n"
+        "  pergamon identity card [--name N] [--path FILE]   printable member cards"
     )
     return 2
 

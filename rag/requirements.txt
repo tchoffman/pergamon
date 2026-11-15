@@ -18,5 +18,8 @@ coincurve>=19.0.0
 bech32>=1.2.0
 websockets>=12.0
 
+# QR codes (member cards, bulletin join link)
+segno>=1.6
+
 # Optional — loaded only by comms module
 meshtastic>=2.5.0 ; python_version >= "3.10"

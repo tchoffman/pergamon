@@ -132,6 +132,7 @@ case "$cmd" in
     require_venv
     cd "$REPO_ROOT"
     echo "Pergamon web UI → http://localhost:$port"
+    "$VENV_PY" -c "from rag.cards import lan_urls; [print('  on your network: ' + u) for u in lan_urls($port)]" 2>/dev/null || true
     exec "$VENV_PY" -m uvicorn rag.web:app --host "$host" --port "$port"
     ;;
 

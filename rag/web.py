@@ -414,6 +414,8 @@ def bulletin(request: Request, days: float = 14):
     relays = _load_relays_from_config()
     listings = _cl.search_infos(_cl.fetch_listings(relays, limit=200))
     posts = _bd.fetch_posts(relays, days=days)
+    urls = _cards.lan_urls(request.url.port or 8090)
+    join_url = urls[0] if urls else str(request.base_url)
     return templates.TemplateResponse(request, "bulletin.html", {
         "offers": [l for l in listings if l["side"] == "offering"],
         "wanted": [l for l in listings if l["side"] == "looking-for"],
@@ -421,4 +423,20 @@ def bulletin(request: Request, days: float = 14):
         "categories": _bd.CATEGORIES,
         "printed": _t.strftime("%A %B %-d, %Y %H:%M"),
         "host": get_active().meta() if get_active() else None,
+        "join_url": join_url,
+        "join_qr": _cards.qr_svg(join_url, scale=3),
     })
+
+
+
+# ─────────────────────────── member cards ───────────────────────────
+
+from rag import cards as _cards  # noqa: E402
+
+
+@app.get("/identity/card", response_class=HTMLResponse)
+def identity_card():
+    ident = get_active()
+    if not ident:
+        raise HTTPException(400, "no active identity")
+    return HTMLResponse(_cards.card_html(ident))

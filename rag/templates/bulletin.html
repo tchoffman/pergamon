@@ -8,7 +8,7 @@
     body { font-family: Georgia, "Times New Roman", serif; color: #000; background: #fff;
            margin: 0 auto; max-width: 8in; font-size: 11pt; line-height: 1.35; }
     h1 { font-size: 20pt; margin: 0; letter-spacing: 0.02em; }
-    .masthead { border-bottom: 3px double #000; padding-bottom: 0.4em; margin-bottom: 0.8em; }
+    .masthead { border-bottom: 3px double #000; padding-bottom: 0.4em; margin-bottom: 0.8em; overflow: hidden; }
     .meta { font-size: 9pt; }
     h2 { font-size: 13pt; border-bottom: 1px solid #000; margin: 1em 0 0.4em; text-transform: uppercase;
          letter-spacing: 0.06em; }
@@ -27,6 +27,7 @@
     <a href="/board">Back to the board</a></div>
 
   <div class="masthead">
+    <div style="float:right;text-align:center" class="small">{{ join_qr | safe }}<br>on the local WiFi:<br>{{ join_url }}</div>
     <h1>Community Bulletin</h1>
     <div class="meta">Printed {{ printed }}{% if host %} · host: {{ host.display_name or host.name }}{% endif %}
       · Listings expire 14 days after posting unless renewed.</div>
