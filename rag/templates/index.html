@@ -149,6 +149,15 @@
         eventSource = null;
       });
 
+      eventSource.addEventListener("failed", (ev) => {
+        const p = document.createElement("p");
+        p.className = "warn";
+        p.textContent = ev.data;
+        answer.insertBefore(p, answerBody);
+        eventSource.close();
+        eventSource = null;
+      });
+
       eventSource.onerror = () => {
         if (eventSource) {
           eventSource.close();

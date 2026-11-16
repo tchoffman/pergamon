@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import sys
+import time
 from pathlib import Path
 
 import chromadb
@@ -104,59 +106,118 @@ def status():
     return _status()
 
 
-def _stream_rag(q: str, system: str, user_prefix: str, use_domain_guards: bool = True):
-    """Shared SSE generator for ask / plan. `user_prefix` labels the user slot
-    (QUESTION or GOAL) so the LLM reads the prompt correctly."""
-    cfg = load_config()
-    hits = relevant_hits(cfg, q)
-    system = system_prompt(cfg, system)
+MAX_QUESTION_CHARS = 2000
 
+
+class ModelGate:
+    """Keeps one LAN device from monopolizing the single local model.
+
+    Each device (by IP) gets one answer in flight at a time and, unless it is
+    the host, a capped number of questions per hour. Over the limit, the
+    request gets a 429 with a plain explanation instead of a model call.
+    """
+
+    def __init__(self, per_hour: int = 30, window_s: float = 3600):
+        self.per_hour, self.window_s = per_hour, window_s
+        self.in_flight: set[str] = set()
+        self.recent: dict[str, list[float]] = {}
+
+    def acquire(self, client: str, is_host: bool, now: float | None = None) -> None:
+        now = now or time.time()
+        if client in self.in_flight:
+            raise HTTPException(429, "Still answering your last question; wait for it to finish.")
+        if not is_host:
+            times = [t for t in self.recent.get(client, []) if now - t < self.window_s]
+            if len(times) >= self.per_hour:
+                raise HTTPException(429, f"That's {self.per_hour} questions this hour from this device; "
+                                         "the library is shared, so please wait a bit.")
+            self.recent[client] = times + [now]
+        self.in_flight.add(client)
+
+    def release(self, client: str) -> None:
+        self.in_flight.discard(client)
+
+
+_gate = ModelGate()
+
+
+def _stream_rag(request: Request, q: str, system: str, user_prefix: str,
+                use_domain_guards: bool = True):
+    """Shared SSE generator for ask / plan / cook. `user_prefix` labels the user
+    slot (QUESTION, GOAL, PANTRY) so the LLM reads the prompt correctly.
+
+    Everything slow (embedding, passage check, generation) runs off the event
+    loop, so one answer in progress doesn't freeze every other page.
+    """
+    q = (q or "").strip()
+    client = request.client.host if request.client else "?"
+    try:
+        if not q:
+            raise HTTPException(400, "Type a question first.")
+        if len(q) > MAX_QUESTION_CHARS:
+            raise HTTPException(413, f"That's too long (max {MAX_QUESTION_CHARS} characters).")
+        _gate.acquire(client, _is_host(request))
+    except HTTPException as e:
+        # EventSource can't read an error response's body, so explain in-stream.
+        reason = str(e.detail)
+
+        async def refused():
+            yield {"event": "failed", "data": reason}
+        return EventSourceResponse(refused())
+
+    cfg = load_config()
+    system = system_prompt(cfg, system)
     guarded_system, domains = guard(q, system) if use_domain_guards else (system, [])
     framed = frame_question(q, domains)
 
     async def event_gen():
-        for d in domains:
-            yield {"event": "notice", "data": d.banner}
-        if hits:
-            for i, h in enumerate(hits, 1):
-                label = _format_source(h["meta"])
-                yield {"event": "source", "data": f"[{i}] {label}"}
-            context, _ = build_context(hits, cfg["max_context_chars"])
-            user_prompt = f"{CONTEXT_HEADER}\n{context}\n\n{user_prefix}: {framed}"
-        else:
-            yield {"event": "source", "data": "(no matching library passages — answered from the model's own knowledge)"}
-            user_prompt = f"{user_prefix}: {framed}"
+        try:
+            for d in domains:
+                yield {"event": "notice", "data": d.banner}
+            hits = await asyncio.to_thread(relevant_hits, cfg, q)
+            if hits:
+                for i, h in enumerate(hits, 1):
+                    label = _format_source(h["meta"])
+                    yield {"event": "source", "data": f"[{i}] {label}"}
+                context, _ = build_context(hits, cfg["max_context_chars"])
+                user_prompt = f"{CONTEXT_HEADER}\n{context}\n\n{user_prefix}: {framed}"
+            else:
+                yield {"event": "source", "data": "(no matching library passages — answered from the model's own knowledge)"}
+                user_prompt = f"{user_prefix}: {framed}"
 
-        client_ollama = ollama.Client(host=cfg["ollama_host"])
-        stream = client_ollama.chat(
-            model=cfg["llm_model"],
-            messages=[
-                {"role": "system", "content": guarded_system},
-                {"role": "user", "content": user_prompt},
-            ],
-            stream=True,
-            think=cfg.get("think", False),
-            options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]},
-        )
-        for chunk in stream:
-            piece = chunk["message"]["content"]
-            if piece:
-                yield {"event": "token", "data": piece}
-            await asyncio.sleep(0)
+            stream = await ollama.AsyncClient(host=cfg["ollama_host"]).chat(
+                model=cfg["llm_model"],
+                messages=[
+                    {"role": "system", "content": guarded_system},
+                    {"role": "user", "content": user_prompt},
+                ],
+                stream=True,
+                think=cfg.get("think", False),
+                options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]},
+            )
+            async for chunk in stream:
+                piece = chunk["message"]["content"]
+                if piece:
+                    yield {"event": "token", "data": piece}
 
-        yield {"event": "done", "data": ""}
+            yield {"event": "done", "data": ""}
+        except Exception as e:
+            print(f"[pergamon] answer failed: {e!r}", file=sys.stderr)
+            yield {"event": "failed", "data": "Sorry, the library couldn't answer just now."}
+        finally:
+            _gate.release(client)
 
     return EventSourceResponse(event_gen())
 
 
 @app.get("/ask")
-async def ask(q: str):
-    return _stream_rag(q, SYSTEM_PROMPT, "QUESTION")
+async def ask(request: Request, q: str):
+    return _stream_rag(request, q, SYSTEM_PROMPT, "QUESTION")
 
 
 @app.get("/plan")
-async def plan(q: str):
-    return _stream_rag(q, PLAN_SYSTEM_PROMPT, "GOAL")
+async def plan(request: Request, q: str):
+    return _stream_rag(request, q, PLAN_SYSTEM_PROMPT, "GOAL")
 
 
 @app.get("/identity", response_class=HTMLResponse)
@@ -1016,4 +1077,4 @@ async def api_food_cook(request: Request):
         raise HTTPException(400, "your pantry is empty — add some items first")
     # Pantry items are bought or stored food, not wild finds; COOK_PROMPT carries
     # its own food-safety rules, so skip the foraging guard here.
-    return _stream_rag(text, COOK_PROMPT, "PANTRY", use_domain_guards=False)
+    return _stream_rag(request, text, COOK_PROMPT, "PANTRY", use_domain_guards=False)

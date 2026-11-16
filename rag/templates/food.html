@@ -150,6 +150,7 @@
         out.textContent += ev.data;
       });
       es.addEventListener("done", () => es.close());
+      es.addEventListener("failed", ev => { es.close(); started = true; out.textContent = ev.data; });
       es.onerror = () => {
         es.close();
         if (!started) out.textContent = "Couldn't get suggestions — is your pantry empty, or is the LLM running?";
