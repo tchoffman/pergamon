@@ -42,7 +42,10 @@ def situation(cfg: dict, today: "date | None" = None) -> str:
     line = f"Today is {d.strftime('%A, %B')} {d.day}, {d.year}."
     if cfg.get("location"):
         line += f" The user is in {cfg['location']}."
-    return line + " Mention the date or place only when it changes the answer."
+    line += " Mention the date or place only when it changes the answer."
+    from rag.situation import prompt_line
+    current = prompt_line()
+    return f"{line}\n{current}" if current else line
 
 
 def system_prompt(cfg: dict, base: str = SYSTEM_PROMPT) -> str:

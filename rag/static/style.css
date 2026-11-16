@@ -279,3 +279,5 @@ a { color: var(--accent); }
 .turn-q { font-weight: 600; margin: 0 0 0.3rem; }
 .turn-a { margin: 0; white-space: pre-wrap; color: var(--muted); }
 .linklike { background: none; border: none; color: var(--accent); padding: 0; cursor: pointer; font: inherit; text-decoration: underline; }
+.situation { border: 1px solid var(--border); padding: 0.5rem 0.8rem; margin-bottom: 1rem; }
+.situation textarea { width: 100%; margin: 0.5rem 0; font: inherit; }

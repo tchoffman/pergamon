@@ -49,6 +49,12 @@ pergamon search "query" [--k N]
 #   Raw semantic search — top-K chunks with sources + previews. No LLM.
 #   Default K is 6; override with --k.
 
+pergamon situation [set "…" | clear]
+#   What's true around here right now ("Power out since Tuesday; wood stove
+#   works"). Empty means normal. Every answer (web, radio, CLI) takes it into
+#   account; presets: set power-out, set grid-down. The host can also edit it
+#   at the top of the Ask page; guests see it read-only.
+
 pergamon eval [--model M ...] [--mesh] [--only ID ...]
 #   Score answers against config/eval/questions.yaml (must-say / must-never-say
 #   checks, negation-aware). Runs one model at a time. Report in build/eval/.

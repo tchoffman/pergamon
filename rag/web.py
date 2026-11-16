@@ -25,6 +25,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from fastapi import HTTPException
 
+from rag import situation as _situation
 from rag.config import REPO_ROOT, load_config
 from rag.domains import frame_question, guard
 from rag.identity import (
@@ -97,8 +98,24 @@ def index(request: Request):
             "kiwix_available": shutil.which("kiwix-serve") is not None
             or (REPO_ROOT / "build" / "bin" / "kiwix-serve").exists()
             or Path("/Applications/Kiwix.app").exists(),
+            "situation": _situation.load(),
+            "situation_presets": _situation.PRESETS,
+            "is_host": _is_host(request),
         },
     )
+
+
+@app.get("/api/situation")
+def api_situation_get():
+    return _situation.load()
+
+
+@app.post("/api/situation")
+def api_situation_set(request: Request, body: dict):
+    """Host only: it changes how every answer on this hub is framed."""
+    if not _is_host(request):
+        raise HTTPException(403, "Only the host can change the hub's current situation.")
+    return _situation.save(str((body or {}).get("text") or ""))
 
 
 @app.get("/status")
