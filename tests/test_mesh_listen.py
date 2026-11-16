@@ -155,3 +155,10 @@ def test_reader_dead_detection():
     assert not listen._reader_dead(i)
     alive.set()
     assert not listen._reader_dead(I())  # no thread attribute: can't tell, assume fine
+
+
+def test_log_file_gets_timestamped_plain_copy(tmp_path):
+    c = listen._TeeConsole(tmp_path / "l.log")
+    c.print("[bold]!b[/bold] (ch 0): ping")
+    line = (tmp_path / "l.log").read_text()
+    assert "!b (ch 0): ping" in line and "[bold]" not in line and line[:4].isdigit()

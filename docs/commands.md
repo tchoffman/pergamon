@@ -242,6 +242,8 @@ pergamon mesh listen
 #   receiver's ack (3 tries) before the next goes out. Reconnects if the USB
 #   link drops. Dedupes retransmits; max 2 pending questions per radio.
 #   Honors config/install.local.yaml → comms.meshtastic.allowed_node_ids.
+#   Everything it prints is also appended to build/mesh/listener.log:
+#     tail -f build/mesh/listener.log
 #
 #   What radio users can send:
 #     any question          → answer in numbered parts

@@ -15,6 +15,7 @@ import queue
 import sys
 import threading
 import time
+from pathlib import Path
 from collections import OrderedDict
 from typing import Any
 
@@ -24,7 +25,30 @@ from modules.comms.meshtastic import commands, mailbox
 from modules.comms.meshtastic.common import MeshReply, ask
 from rag.install_config import load_yaml, INSTALL_LOCAL_PATH
 
-console = Console()
+LOG_PATH = Path(__file__).resolve().parents[3] / "build" / "mesh" / "listener.log"
+
+
+class _TeeConsole:
+    """Prints to the terminal as usual and appends a timestamped plain-text
+    copy to build/mesh/listener.log, so the host can `tail -f` it anywhere."""
+
+    def __init__(self, path: Path = LOG_PATH):
+        self.screen = Console()
+        self.path = path
+
+    def print(self, *args, **kwargs) -> None:
+        self.screen.print(*args, **kwargs)
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a") as f:
+                text = Console(file=f, width=200, no_color=True, highlight=False)
+                stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+                text.print(stamp, *args, **{k: v for k, v in kwargs.items() if k != "style"})
+        except OSError:
+            pass  # the log is a convenience; never let it break the listener
+
+
+console = _TeeConsole()
 
 
 def _load_allowed_nodes() -> set[str]:
