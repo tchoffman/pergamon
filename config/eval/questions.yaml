@@ -148,3 +148,16 @@ cases:
     must:
       - [garlic, lettuce, spinach, kale, onion, collard, cabbage, radish, cover crop, turnip, mustard]
     must_not: [plant tomatoes now, plant peppers now, eaten like asparagus]
+
+  # ── live data the library can't have ─────────────────────────────────
+  - id: weather-today
+    question: What is today's weather in Marietta GA?
+    must:
+      - [no live, no internet, don't have, do not have, can't, cannot, not able, no access, unable]
+      - [typical, usually, average, normal, tend to]
+    must_not: [drop some grass, toss grass, today's forecast is, it will be sunny, it will rain today]
+
+  - id: news-today
+    question: What's happening in the news today?
+    must:
+      - [no live, no internet, don't have, do not have, can't, cannot, not able, no access, unable]
