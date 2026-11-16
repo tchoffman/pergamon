@@ -73,6 +73,11 @@ class Mailbox:
         self.db.execute("UPDATE mail SET delivered_at=? WHERE id=?", (int(now or time.time()), mail_id))
         self.db.commit()
 
+    def recipients_waiting(self, now: float | None = None) -> list[str]:
+        self._expire(now or time.time())
+        return [r for (r,) in self.db.execute(
+            "SELECT DISTINCT recipient FROM mail WHERE delivered_at IS NULL")]
+
     def has_pending(self, recipient: str) -> bool:
         return self.db.execute(
             "SELECT 1 FROM mail WHERE recipient=? AND delivered_at IS NULL LIMIT 1",

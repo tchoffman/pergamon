@@ -76,6 +76,9 @@ MAX_QUESTION_CHARS = 500     # a LoRa text is ~200; anything longer is junk
 MAX_PENDING_PER_SENDER = 2   # one radio can't fill the queue for everyone else
 SEEN_IDS_KEPT = 200
 RECONNECT_DELAY_S = 10
+# Radios on current firmware may stay silent for hours unless spoken to, so
+# "deliver when heard" alone can strand mail. Also retry on a timer.
+MAIL_RETRY_S = 900
 
 SORRY_TEXT = "[pergamon] Sorry, I couldn't answer that just now. Try again shortly."
 BUSY_TEXT = "[pergamon] Still working on your earlier questions; send this again after they arrive."
@@ -135,6 +138,18 @@ def _queue_delivery(interface: Any, recipient: str) -> None:
             return
         _delivering.add(recipient)
     _jobs.put((interface, recipient, None))
+
+
+def retry_waiting_mail(interface: Any) -> int:
+    """Queue a delivery attempt for every radio with mail waiting."""
+    try:
+        waiting = _get_mailbox().recipients_waiting()
+    except Exception as e:
+        console.print(f"[red]mailbox check failed: {e!r}[/red]")
+        return 0
+    for r in waiting:
+        _queue_delivery(interface, r)
+    return len(waiting)
 
 
 def _worker() -> None:
@@ -271,8 +286,12 @@ def main() -> int:
     pub.subscribe(on_lost, "meshtastic.connection.lost")
 
     console.print("[green]ready. ctrl-c to quit.[/green]")
+    next_mail_try = time.time() + 30
     try:
         while True:
+            if time.time() >= next_mail_try and not lost.is_set():
+                next_mail_try = time.time() + MAIL_RETRY_S
+                retry_waiting_mail(iface)
             # A dropped USB cable or radio reboot shows up as connection.lost;
             # keep trying to reopen instead of sitting deaf.
             if lost.wait(1):

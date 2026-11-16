@@ -102,3 +102,15 @@ def test_listener_holds_mail_until_recipient_is_heard(box, monkeypatch):
 def test_unknown_recipient_explained(box, monkeypatch):
     monkeypatch.setattr(listen, "_mailbox", box)
     assert "Don't know a radio called 'zed'" in listen._handle_msg(Radio(), "!aaaaaaaa", "/msg zed hi")
+
+
+def test_timer_retry_queues_every_waiting_recipient(box, monkeypatch):
+    import queue
+    monkeypatch.setattr(listen, "_mailbox", box)
+    monkeypatch.setattr(listen, "_jobs", queue.Queue())
+    monkeypatch.setattr(listen, "_delivering", set())
+    box.deposit("!aaaaaaaa", "!bbbbbbbb", "one")
+    box.deposit("!aaaaaaaa", "!cccccccc", "two")
+    assert listen.retry_waiting_mail(Radio()) == 2
+    assert {listen._jobs.get_nowait()[1] for _ in range(2)} == {"!bbbbbbbb", "!cccccccc"}
+    assert listen.retry_waiting_mail(Radio()) == 2 and listen._jobs.empty()  # already in progress
