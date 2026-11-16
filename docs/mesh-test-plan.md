@@ -24,6 +24,13 @@ into fixes.
 
 **Gotchas found on test day**
 
+- **Match the local mesh's preset.** Meshtastic ships on LongFast, but the
+  Cobb County mesh (BSRG) and other Georgia groups run **MediumFast**; on
+  LongFast you won't hear them. Both test radios were switched 2026-11-16
+  (`lora.modem_preset MEDIUM_FAST`); A↔B traceroute improved from ~6 dB to
+  10–12 dB SNR. Before joining a public mesh, set an allowlist
+  (`comms.meshtastic.allowed_node_ids`) so strangers can't use your Pergamon.
+
 - **New radios ship with Heltec's factory test firmware** (screen says
   "LORA MODE 0"). Flash Meshtastic first.
 - **Chrome's flasher tab keeps the serial port open** after flashing. Close
