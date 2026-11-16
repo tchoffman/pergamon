@@ -48,8 +48,12 @@
       <button type="submit">Go</button>
     </form>
 
+    <section id="thread" class="hidden">
+      <div id="turns"></div>
+      <button type="button" id="newChat" class="linklike">New conversation</button>
+    </section>
     <section id="answer" class="hidden">
-      <h2>Answer</h2>
+      <h2 id="answerTitle">Answer</h2>
       <div id="answerBody"></div>
       <h3 id="sourcesHeader" class="hidden">Sources</h3>
       <ul id="sources"></ul>
@@ -124,7 +128,8 @@
 
     function doStream(mode, q) {
       if (eventSource) eventSource.close();
-      eventSource = new EventSource("/" + mode + "?q=" + encodeURIComponent(q));
+      const sidParam = mode === "ask" ? "&sid=" + encodeURIComponent(chatId()) : "";
+      eventSource = new EventSource("/" + mode + "?q=" + encodeURIComponent(q) + sidParam);
 
       eventSource.addEventListener("notice", (ev) => {
         const p = document.createElement("p");
@@ -179,14 +184,57 @@
       };
     }
 
+    // ── conversation: one per browser tab, so follow-ups make sense ──
+    const thread = document.getElementById("thread");
+    const turns = document.getElementById("turns");
+    const answerTitle = document.getElementById("answerTitle");
+    let lastQ = null;
+    function chatId() {
+      try {
+        let id = sessionStorage.getItem("pergamon.chat.sid");
+        if (!id) {
+          id = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
+          sessionStorage.setItem("pergamon.chat.sid", id);
+        }
+        return id;
+      } catch (e) { return "tab"; }
+    }
+    function archiveCurrent() {
+      const a = answerBody.textContent.trim();
+      if (!lastQ || !a || modeSel.value !== "ask") return;
+      const div = document.createElement("div");
+      div.className = "turn";
+      const q = document.createElement("p");
+      q.className = "turn-q";
+      q.textContent = lastQ;
+      const ans = document.createElement("p");
+      ans.className = "turn-a";
+      ans.textContent = a;
+      div.append(q, ans);
+      turns.appendChild(div);
+      thread.classList.remove("hidden");
+    }
+    document.getElementById("newChat").addEventListener("click", () => {
+      try { sessionStorage.removeItem("pergamon.chat.sid"); } catch (e) {}
+      turns.innerHTML = "";
+      thread.classList.add("hidden");
+      answer.classList.add("hidden");
+      lastQ = null;
+      input.focus();
+    });
+
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       const q = input.value.trim();
       if (!q) return;
 
+      archiveCurrent();
+      lastQ = q;
+      answerTitle.textContent = modeSel.value === "ask" ? q : "Answer";
+      input.value = "";
       answerBody.textContent = "";
       sources.innerHTML = "";
-      answer.querySelectorAll("p.warn").forEach((n) => n.remove());
+      answer.querySelectorAll("p.warn, p.muted").forEach((n) => n.remove());
       sourcesHeader.classList.add("hidden");
       answer.classList.remove("hidden");
 

@@ -163,3 +163,29 @@ def test_log_file_gets_timestamped_plain_copy(tmp_path):
     c.print("[bold]!b[/bold] (ch 0): ping")
     line = (tmp_path / "l.log").read_text()
     assert "!b (ch 0): ping" in line and "[bold]" not in line and line[:4].isdigit()
+
+
+def test_radio_follow_ups_carry_history_and_new_resets(monkeypatch):
+    from rag.conversations import Conversations
+    _reset(monkeypatch)
+    convo = Conversations()
+    monkeypatch.setattr(listen, "conversations", convo)
+    seen = []
+
+    def fake_ask(text, history=None):
+        seen.append([m["content"] for m in history or []])
+        return MeshReply(answer=f"re: {text}", sources=[])
+    monkeypatch.setattr(listen, "ask", fake_ask)
+    iface = FakeIface([])
+    for msg in ["How do I build a wood-fired oven?", "A bread oven", "/new", "hi"]:
+        listen._jobs.put((iface, "!b", msg))
+        listen._pending["!b"] = 1
+    listen.threading.Thread(target=listen._worker, daemon=True).start()
+    for _ in range(200):
+        if len(iface.sent) >= 4:
+            break
+        listen.time.sleep(0.01)
+    assert seen[0] == []
+    assert seen[1] == ["How do I build a wood-fired oven?", "re: How do I build a wood-fired oven?"]
+    assert "[1/1] Started a new conversation." in iface.sent
+    assert seen[2] == []

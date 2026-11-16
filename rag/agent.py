@@ -43,6 +43,14 @@ You have tools. Use one only when it makes the answer better:
 - calculate for any arithmetic beyond the trivial. Never do sums in your head.
 - community tools for what people nearby are offering, needing, or posting.
 Don't call tools for chit-chat, writing, or things you know well.
+Never offer to look something up or ask permission to use a tool: if it
+would help, use it and answer. Don't ask which variant the person means;
+answer for the most common case and mention how others differ. Ask a
+question back only if you truly cannot answer without it.
+If a search finds nothing useful, answer from your own knowledge and don't
+mention the search or the library.
+Read each message in the light of the conversation so far: a short reply
+like "a bread oven" usually narrows the previous question.
 
 You have no live data: no weather, news, prices, or road conditions. For those,
 say so in one sentence, then give what still helps offline: what is typical for
@@ -109,13 +117,16 @@ def _search_library(cfg: dict, run: Run) -> Callable[[str], str]:
         limit = cfg.get("max_distance")
         hits = [h for h in retrieve(cfg, query) if limit is None or h["dist"] <= limit][:4]
         if not hits:
-            return "No library passages matched."
+            return ("No library passages matched. Answer fully from your own knowledge; "
+                    "don't mention the library.")
         out = []
         for h in hits:
             run.sources.append(_format_source(h["meta"]))
             n = len(run.sources)
             out.append(f"[{n}] {_format_source(h['meta'])}\n{h['text'].strip()[:900]}")
-        return "\n\n".join(out)
+        return ("Library passages follow. Use any that help, citing them like [1]. If they "
+                "don't cover the question, ignore them and answer fully from your own "
+                "knowledge; don't say the library lacks it.\n\n" + "\n\n".join(out))
     return search_library
 
 
@@ -203,11 +214,16 @@ def _call(fns: dict[str, Callable[..., str]], name: str, args: dict) -> str:
     return result[:TOOL_RESULT_CHARS]
 
 
-def _setup(question: str, cfg: dict, is_host: bool, extra_system: str):
+def _setup(question: str, cfg: dict, is_host: bool, extra_system: str,
+           history: list[dict] | None = None):
     run = Run()
     schemas, fns = tools_for(cfg, run, is_host)
-    system, domains = guard(question, system_prompt(cfg, AGENT_SYSTEM) + extra_system)
+    # Safety domains are detected on the whole recent conversation, so "how do
+    # I treat it?" after "a snake bit my dog" still gets the medical facts.
+    recent = " ".join([m["content"] for m in (history or []) if m["role"] == "user"][-2:] + [question])
+    system, domains = guard(recent, system_prompt(cfg, AGENT_SYSTEM) + extra_system)
     messages: list[dict[str, Any]] = [{"role": "system", "content": system},
+                                      *(history or []),
                                       {"role": "user", "content": question}]
     opts = dict(model=cfg["llm_model"], think=cfg.get("think", False),
                 options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]})
@@ -225,10 +241,11 @@ def _args(c) -> dict:
 
 
 def answer(question: str, cfg: dict | None = None, *, is_host: bool = True,
-           extra_system: str = "", chat=None) -> tuple[str, Run]:
-    """Answer with tools. Returns (text, run record)."""
+           extra_system: str = "", chat=None, history: list[dict] | None = None) -> tuple[str, Run]:
+    """Answer with tools. `history` is earlier user/assistant messages from
+    this conversation. Returns (text, run record)."""
     cfg = cfg or load_config()
-    run, schemas, fns, messages, opts, _ = _setup(question, cfg, is_host, extra_system)
+    run, schemas, fns, messages, opts, _ = _setup(question, cfg, is_host, extra_system, history)
     if chat is None:
         chat = ollama.Client(host=cfg["ollama_host"]).chat
 
@@ -252,7 +269,7 @@ def answer(question: str, cfg: dict | None = None, *, is_host: bool = True,
 
 
 async def astream(question: str, cfg: dict, *, is_host: bool = True, extra_system: str = "",
-                  client=None):
+                  client=None, history: list[dict] | None = None):
     """Async version for the web page. Yields (kind, data) events:
 
       ("notice", banner)      safety domain matched
@@ -264,7 +281,7 @@ async def astream(question: str, cfg: dict, *, is_host: bool = True, extra_syste
     event loop, and the next round streams the answer.
     """
     import asyncio
-    run, schemas, fns, messages, opts, domains = _setup(question, cfg, is_host, extra_system)
+    run, schemas, fns, messages, opts, domains = _setup(question, cfg, is_host, extra_system, history)
     for d in domains:
         yield ("notice", d.banner)
     client = client or ollama.AsyncClient(host=cfg["ollama_host"])

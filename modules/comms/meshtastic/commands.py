@@ -18,7 +18,7 @@ import time
 from typing import Callable
 
 HELP = ("Pergamon: ask me anything. Commands: "
-        "/news, /find <item>, /skills <skill>, /msg <name> <text>, ping.")
+        "/news, /find <item>, /skills <skill>, /msg <name> <text>, /new (fresh conversation), ping.")
 MAX_ITEMS = 3
 SNIPPET = 90
 

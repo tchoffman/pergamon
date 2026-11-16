@@ -23,6 +23,7 @@ from rich.console import Console
 
 from modules.comms.meshtastic import commands, mailbox
 from modules.comms.meshtastic.common import MeshReply, ask
+from rag.conversations import store as conversations
 from rag.install_config import load_yaml, INSTALL_LOCAL_PATH
 
 LOG_PATH = Path(__file__).resolve().parents[3] / "build" / "mesh" / "listener.log"
@@ -199,13 +200,19 @@ def _worker() -> None:
                     _delivering.discard(sender)
             continue
         try:
+            if text.strip().lower().rstrip("!.") in ("/new", "new"):
+                conversations.reset(sender)
+                _reply(interface, sender, MeshReply(answer="Started a new conversation.", sources=[]))
+                continue
             command_reply = _handle_msg(interface, sender, text)
             if command_reply is None:
                 command_reply = commands.run(text)
             if command_reply is not None:
                 _reply(interface, sender, MeshReply(answer=command_reply, sources=[]))
             else:
-                _reply(interface, sender, ask(text))
+                reply = ask(text, history=conversations.history(sender))
+                conversations.add(sender, text, reply.answer)
+                _reply(interface, sender, reply)
         except Exception as e:
             # Details stay in the local log; the radio gets a plain apology.
             console.print(f"[red]ask failed: {e!r}[/red]")

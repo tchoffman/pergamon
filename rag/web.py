@@ -160,20 +160,33 @@ def _admit(request: Request, q: str):
     return client, None
 
 
-def _stream_agent(request: Request, q: str):
-    """Tool-calling answer over SSE: notices, tool use, sources, tokens."""
+def _stream_agent(request: Request, q: str, sid: str = ""):
+    """Tool-calling answer over SSE: notices, tool use, sources, tokens.
+
+    `sid` names this browser tab's conversation, so follow-ups ("a bread
+    oven") are read with the question before. Keyed by client too, so one
+    device can't read another's conversation by guessing its id.
+    """
     from rag import agent
+    from rag.conversations import store as conversations
     q = (q or "").strip()
     client, refusal = _admit(request, q)
     if refusal is not None:
         return refusal
     cfg = load_config()
     is_host = _is_host(request)
+    key = f"web:{client}:{sid[:64]}" if sid else None
+    history = conversations.history(key) if key else []
 
     async def event_gen():
+        answer_text: list[str] = []
         try:
-            async for kind, data in agent.astream(q, cfg, is_host=is_host):
+            async for kind, data in agent.astream(q, cfg, is_host=is_host, history=history):
+                if kind == "token":
+                    answer_text.append(data)
                 yield {"event": kind, "data": data}
+            if key:
+                conversations.add(key, q, "".join(answer_text))
             yield {"event": "done", "data": ""}
         except Exception as e:
             print(f"[pergamon] answer failed: {e!r}", file=sys.stderr)
@@ -243,9 +256,9 @@ def _stream_rag(request: Request, q: str, system: str, user_prefix: str,
 
 
 @app.get("/ask")
-async def ask(request: Request, q: str):
+async def ask(request: Request, q: str, sid: str = ""):
     if load_config().get("answer_mode") == "agent":
-        return _stream_agent(request, q)
+        return _stream_agent(request, q, sid)
     return _stream_rag(request, q, SYSTEM_PROMPT, "QUESTION")
 
 

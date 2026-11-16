@@ -58,16 +58,18 @@ SHORT_HINT = (
 _CITES = re.compile(r"\s*\[\d+(?:,\s*\d+)*\]")
 
 
-def _ask_agent(question: str, cfg: dict) -> MeshReply:
+def _ask_agent(question: str, cfg: dict, history: list[dict] | None = None) -> MeshReply:
     """Tool-calling answer for a radio user. Radio users are never the host,
     so private tools (pantry) aren't offered."""
     from rag import agent
-    text, run = agent.answer(question, cfg, is_host=False, extra_system=SHORT_HINT)
+    text, run = agent.answer(question, cfg, is_host=False, extra_system=SHORT_HINT,
+                             history=history)
     top = run.sources[0].split("  (")[0] if run.sources else None
     return MeshReply(answer=_CITES.sub("", text).strip(), sources=[top] if top else [])
 
 
-def ask(question: str, max_tokens_hint: int = 150, model: str | None = None) -> MeshReply:
+def ask(question: str, max_tokens_hint: int = 150, model: str | None = None,
+        history: list[dict] | None = None) -> MeshReply:
     """Run the RAG pipeline synchronously and return a MeshReply.
 
     Deliberately short answers: mesh users don't want essays. The system
@@ -78,7 +80,7 @@ def ask(question: str, max_tokens_hint: int = 150, model: str | None = None) -> 
     if model:
         cfg["llm_model"] = model
     if cfg.get("answer_mode") == "agent":
-        return _ask_agent(question, cfg)
+        return _ask_agent(question, cfg, history)
     hits = relevant_hits(cfg, question)
 
     if hits:
