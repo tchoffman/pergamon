@@ -22,6 +22,11 @@ max_context_chars: 8000   # cap context fed to the LLM to stay within window
 # shown to the LLM when answering. On-topic matches score ~150-300; unrelated
 # ones ~450. Raise it to lean on the library more, lower it to lean on it less.
 max_distance: 350
+# Before answering, ask the model which of the top passages actually answer the
+# question (one extra model call, a few seconds). Off-topic passages that pass
+# max_distance are dropped instead of steering the answer.
+vet_passages: true
+vet_max: 4
 
 # Where this install is, e.g. "Marietta, Georgia, USA". Told to the model with
 # today's date so "what should I plant now?" gets a local answer. Set it in

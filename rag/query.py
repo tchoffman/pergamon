@@ -1,6 +1,7 @@
 """Ask the library a question. Retrieves relevant chunks, synthesizes with the LLM."""
 from __future__ import annotations
 
+import json
 import sys
 from datetime import date
 
@@ -63,7 +64,47 @@ def relevant_hits(cfg: dict, question: str) -> list[dict]:
     """
     limit = cfg.get("max_distance")
     hits = retrieve(cfg, question)
-    return hits if limit is None else [h for h in hits if h["dist"] <= limit]
+    if limit is not None:
+        hits = [h for h in hits if h["dist"] <= limit]
+    if hits and cfg.get("vet_passages"):
+        hits = vet_passages(cfg, question, hits[: cfg.get("vet_max", 4)])
+    return hits
+
+
+VET_PROMPT = """You decide which library passages help answer a question.
+A passage helps only if it contains facts that directly answer the question.
+Being about a similar topic is not enough (a wildflower guide does not answer
+a vegetable-gardening question). Reply with JSON only: {"helpful": [numbers]}
+or {"helpful": []} if none help."""
+
+
+def vet_passages(cfg: dict, question: str, hits: list[dict], chat=None) -> list[dict]:
+    """Keep only passages the model judges to actually answer the question.
+
+    Distance alone can't tell "same topic" from "answers it": with no gardening
+    book indexed, a gardening question's nearest passage is a wildflower guide,
+    and a small model will build an answer around whatever it is handed. If the
+    check fails or returns junk, no passages are used — the model then answers
+    from its own knowledge, which beats steering it with off-topic text.
+    """
+    if not hits:
+        return []
+    listing = "\n\n".join(f"[{i}] {h['text'].strip()[:700]}" for i, h in enumerate(hits, 1))
+    if chat is None:
+        chat = ollama.Client(host=cfg["ollama_host"]).chat
+    try:
+        resp = chat(
+            model=cfg["llm_model"],
+            messages=[{"role": "system", "content": VET_PROMPT},
+                      {"role": "user", "content": f"QUESTION: {question}\n\nPASSAGES:\n{listing}"}],
+            format="json",
+            options={"temperature": 0, "num_ctx": cfg.get("num_ctx", 8192)},
+        )
+        picked = json.loads(resp["message"]["content"]).get("helpful") or []
+        keep = {int(n) for n in picked if str(n).isdigit()}
+    except Exception:
+        return []
+    return [h for i, h in enumerate(hits, 1) if i in keep]
 
 
 def _format_source(meta: dict, kiwix_port: int = 8080) -> str:
