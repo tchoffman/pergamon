@@ -11,7 +11,9 @@ Safety:
 from __future__ import annotations
 
 import os
+import queue
 import sys
+import threading
 import time
 from typing import Any
 
@@ -29,12 +31,57 @@ def _load_allowed_nodes() -> set[str]:
     return {str(x) for x in allowed}
 
 
+ACK_TIMEOUT_S = 30
+ATTEMPTS = 3
+
+
+def _send_confirmed(iface: Any, dest_id: str, text: str) -> bool:
+    """Send one part and block until the receiver acknowledges it, retrying.
+
+    Firing parts back to back loses all but the first: each LoRa packet takes
+    over a second of airtime. Waiting for the ack paces the parts to the link.
+    """
+    for attempt in range(1, ATTEMPTS + 1):
+        done = threading.Event()
+        result: dict = {}
+
+        # The name matters: meshtastic delivers plain ACKs only to a callback
+        # called onAckNak.
+        def onAckNak(packet: dict) -> None:
+            result["error"] = ((packet.get("decoded") or {}).get("routing") or {}).get("errorReason", "NONE")
+            done.set()
+
+        iface.sendText(text, destinationId=dest_id, wantAck=True, onResponse=onAckNak)
+        if done.wait(ACK_TIMEOUT_S) and result.get("error") == "NONE":
+            return True
+        console.print(f"[yellow]  part not confirmed ({result.get('error', 'timeout')}), "
+                      f"attempt {attempt}/{ATTEMPTS}[/yellow]")
+    return False
+
+
 def _reply(iface: Any, dest_id: str, reply):
     chunks = reply.chunks()
     console.print(f"[dim]  → {len(chunks)} LoRa packet(s)[/dim]")
-    for c in chunks:
-        iface.sendText(c, destinationId=dest_id)
-        time.sleep(1.2)  # be gentle on the airwaves
+    for i, c in enumerate(chunks, 1):
+        if not _send_confirmed(iface, dest_id, c):
+            console.print(f"[red]  giving up at part {i}/{len(chunks)}[/red]")
+            return
+        console.print(f"[dim]  ✓ part {i}/{len(chunks)}[/dim]")
+
+
+# Replies run on one worker thread: the receive callback must return quickly,
+# because acks for our own sends arrive on that same thread.
+_jobs: "queue.Queue[tuple[Any, str, str]]" = queue.Queue()
+
+
+def _worker() -> None:
+    while True:
+        interface, sender, text = _jobs.get()
+        try:
+            _reply(interface, sender, ask(text))
+        except Exception as e:
+            console.print(f"[red]ask failed: {e}[/red]")
+            interface.sendText(f"[pergamon] error: {e}"[:200], destinationId=sender)
 
 
 def on_receive(packet: dict, interface) -> None:
@@ -58,12 +105,7 @@ def on_receive(packet: dict, interface) -> None:
         return
 
     console.print(f"[bold]{sender}[/bold] (ch {channel}): {text}")
-    try:
-        reply = ask(text)
-        _reply(interface, sender, reply)
-    except Exception as e:
-        console.print(f"[red]ask failed: {e}[/red]")
-        interface.sendText(f"[pergamon] error: {e}"[:200], destinationId=sender)
+    _jobs.put((interface, sender, text))
 
 
 def main() -> int:
@@ -93,6 +135,7 @@ def main() -> int:
     else:
         console.print("[yellow]no allowlist set — responding to all DMs[/yellow]")
 
+    threading.Thread(target=_worker, daemon=True).start()
     pub.subscribe(on_receive, "meshtastic.receive")
 
     console.print("[green]ready. ctrl-c to quit.[/green]")
