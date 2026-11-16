@@ -112,3 +112,17 @@ def test_errors_send_a_plain_apology_not_internals(monkeypatch):
             break
         listen.time.sleep(0.01)
     assert iface.sent == [listen.SORRY_TEXT]
+
+
+def test_handler_errors_never_escape_to_the_reader_thread(monkeypatch):
+    def boom(packet, interface):
+        raise RuntimeError("bad packet")
+    monkeypatch.setattr(listen, "_on_receive", boom)
+    listen.on_receive({"fromId": "!b"}, RecordingIface())  # must not raise
+
+
+def test_every_packet_updates_last_heard(monkeypatch):
+    _reset(monkeypatch)
+    listen._last_packet[0] = 0
+    listen.on_receive({"fromId": "!x", "decoded": {"portnum": "TELEMETRY_APP"}}, RecordingIface())
+    assert listen._last_packet[0] > 0

@@ -79,6 +79,10 @@ RECONNECT_DELAY_S = 10
 # Radios on current firmware may stay silent for hours unless spoken to, so
 # "deliver when heard" alone can strand mail. Also retry on a timer.
 MAIL_RETRY_S = 900
+# The attached radio reports its own telemetry to the laptop every minute or
+# so. Total silence this long means the link is dead even if nothing said so
+# (seen 2026-11-16: listener ran for hours without hearing anything).
+SILENCE_RECONNECT_S = 600
 
 SORRY_TEXT = "[pergamon] Sorry, I couldn't answer that just now. Try again shortly."
 BUSY_TEXT = "[pergamon] Still working on your earlier questions; send this again after they arrive."
@@ -198,8 +202,24 @@ def _already_seen(packet: dict) -> bool:
     return False
 
 
+_last_packet = [time.time()]
+
+
 def on_receive(packet: dict, interface) -> None:
-    """Called by Meshtastic's pubsub for each received packet."""
+    """Called by Meshtastic's pubsub for each received packet.
+
+    Never lets an exception escape: this runs on the radio's reader thread,
+    and an exception there can leave the listener running but deaf.
+    """
+    _last_packet[0] = time.time()
+    try:
+        _on_receive(packet, interface)
+    except Exception:
+        import traceback
+        console.print(f"[red]error handling packet:[/red]\n{traceback.format_exc()}")
+
+
+def _on_receive(packet: dict, interface) -> None:
     # Any packet at all (position, telemetry, text) proves a radio is in
     # range: hand over mail waiting for it.
     heard = packet.get("fromId")
@@ -292,6 +312,9 @@ def main() -> int:
             if time.time() >= next_mail_try and not lost.is_set():
                 next_mail_try = time.time() + MAIL_RETRY_S
                 retry_waiting_mail(iface)
+            if time.time() - _last_packet[0] > SILENCE_RECONNECT_S and not lost.is_set():
+                console.print(f"[red]no packets from the radio for {SILENCE_RECONNECT_S // 60} min[/red]")
+                lost.set()
             # A dropped USB cable or radio reboot shows up as connection.lost;
             # keep trying to reopen instead of sitting deaf.
             if lost.wait(1):
@@ -304,6 +327,7 @@ def main() -> int:
                     time.sleep(RECONNECT_DELAY_S)
                     try:
                         iface = open_radio()
+                        _last_packet[0] = time.time()
                         lost.clear()
                         console.print("[green]reconnected. ready.[/green]")
                         break
