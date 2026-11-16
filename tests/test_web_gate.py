@@ -68,3 +68,38 @@ def test_model_failure_becomes_failed_event(client, monkeypatch):
     body = client.get("/ask", params={"q": "hi"}).text
     assert "event: failed" in body and "localhost" not in body
     assert web._gate.in_flight == set()
+
+
+class FakeAgentStream:
+    """AsyncClient stand-in: round 1 calls the calculator, round 2 answers."""
+
+    def __init__(self, host=None):
+        self.round = 0
+
+    async def chat(self, **kw):
+        self.round += 1
+        r = self.round
+
+        async def gen():
+            if r == 1:
+                yield {"message": {"content": "", "tool_calls": [
+                    {"function": {"name": "calculate", "arguments": {"expression": "15/100*240"}}}]}}
+            else:
+                for piece in ["It is ", "36."]:
+                    yield {"message": {"content": piece}}
+        return gen()
+
+
+def test_agent_mode_streams_tool_use_then_answer(client, monkeypatch):
+    from rag import agent
+    monkeypatch.setattr(web, "load_config", lambda: {**_cfg(), "answer_mode": "agent"})
+    monkeypatch.setattr(agent.ollama, "AsyncClient", FakeAgentStream)
+    body = client.get("/ask", params={"q": "what is 15% of 240"}).text
+    assert "event: tool" in body and "calculate(15/100*240)" in body
+    assert "36." in body and "event: done" in body
+    assert web._gate.in_flight == set()
+
+
+def _cfg():
+    from rag.config import load_config
+    return load_config()

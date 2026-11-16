@@ -141,15 +141,8 @@ class ModelGate:
 _gate = ModelGate()
 
 
-def _stream_rag(request: Request, q: str, system: str, user_prefix: str,
-                use_domain_guards: bool = True):
-    """Shared SSE generator for ask / plan / cook. `user_prefix` labels the user
-    slot (QUESTION, GOAL, PANTRY) so the LLM reads the prompt correctly.
-
-    Everything slow (embedding, passage check, generation) runs off the event
-    loop, so one answer in progress doesn't freeze every other page.
-    """
-    q = (q or "").strip()
+def _admit(request: Request, q: str):
+    """(client, None) if the question may run, else (client, an SSE refusal)."""
     client = request.client.host if request.client else "?"
     try:
         if not q:
@@ -163,7 +156,46 @@ def _stream_rag(request: Request, q: str, system: str, user_prefix: str,
 
         async def refused():
             yield {"event": "failed", "data": reason}
-        return EventSourceResponse(refused())
+        return client, EventSourceResponse(refused())
+    return client, None
+
+
+def _stream_agent(request: Request, q: str):
+    """Tool-calling answer over SSE: notices, tool use, sources, tokens."""
+    from rag import agent
+    q = (q or "").strip()
+    client, refusal = _admit(request, q)
+    if refusal is not None:
+        return refusal
+    cfg = load_config()
+    is_host = _is_host(request)
+
+    async def event_gen():
+        try:
+            async for kind, data in agent.astream(q, cfg, is_host=is_host):
+                yield {"event": kind, "data": data}
+            yield {"event": "done", "data": ""}
+        except Exception as e:
+            print(f"[pergamon] answer failed: {e!r}", file=sys.stderr)
+            yield {"event": "failed", "data": "Sorry, the library couldn't answer just now."}
+        finally:
+            _gate.release(client)
+
+    return EventSourceResponse(event_gen())
+
+
+def _stream_rag(request: Request, q: str, system: str, user_prefix: str,
+                use_domain_guards: bool = True):
+    """Shared SSE generator for ask / plan / cook. `user_prefix` labels the user
+    slot (QUESTION, GOAL, PANTRY) so the LLM reads the prompt correctly.
+
+    Everything slow (embedding, passage check, generation) runs off the event
+    loop, so one answer in progress doesn't freeze every other page.
+    """
+    q = (q or "").strip()
+    client, refusal = _admit(request, q)
+    if refusal is not None:
+        return refusal
 
     cfg = load_config()
     system = system_prompt(cfg, system)
@@ -212,6 +244,8 @@ def _stream_rag(request: Request, q: str, system: str, user_prefix: str,
 
 @app.get("/ask")
 async def ask(request: Request, q: str):
+    if load_config().get("answer_mode") == "agent":
+        return _stream_agent(request, q)
     return _stream_rag(request, q, SYSTEM_PROMPT, "QUESTION")
 
 

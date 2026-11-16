@@ -33,6 +33,14 @@ vet_max: 4
 # config/install.local.yaml (location: ...) to keep it out of git.
 location: ""
 
+# How questions are answered:
+#   agent: the model decides whether to search the library, calculate, or look
+#          at the board/classifieds/skills (tool calling). Default: 30/31 on
+#          pergamon eval at ~19s vs 29/31 at ~43s for rag (Nov 2026).
+#   rag:   always retrieve library passages first, then answer.
+# Plans and pantry recipes always use their own prompts.
+answer_mode: agent
+
 # Generation parameters.
 temperature: 0.2          # low → factual; raise for more exploratory answers
 num_ctx: 8192             # LLM context window (model-dependent)

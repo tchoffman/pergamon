@@ -127,14 +127,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--model", action="append", help="model to test (repeatable)")
     ap.add_argument("--mesh", action="store_true", help="score radio-length answers")
     ap.add_argument("--only", action="append", help="case id to run (repeatable)")
-    ap.add_argument("--mode", choices=["rag", "agent"], default="rag",
-                    help="rag: always retrieve (default); agent: model calls tools")
+    ap.add_argument("--mode", choices=["rag", "agent"], default=None,
+                    help="agent: model calls tools; rag: always retrieve. "
+                         "Default: answer_mode in rag/config.yaml")
     args = ap.parse_args(argv)
 
     cases = load_cases()
     if args.only:
         cases = [c for c in cases if c["id"] in set(args.only)]
     models = args.model or [load_config()["llm_model"]]
+    args.mode = args.mode or load_config().get("answer_mode", "rag")
 
     out_dir = REPO_ROOT / "build" / "eval"
     out_dir.mkdir(parents=True, exist_ok=True)

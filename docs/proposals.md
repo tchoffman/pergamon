@@ -44,6 +44,13 @@ Ideas that came up while building, not yet agreed. Mark ✅ / ❌ / later.
   USB bundle. Mesh as the doorbell, not the pipe.
 - ~~Store-and-forward~~ — built as the radio mailbox (`/msg`). Still open:
   hold *answers* the same way when the asker walks out of range mid-reply.
+- **Mesh chat in the browser, served by the hub.** Meshtastic's web client
+  (the app at client.meshtastic.org) is open source and can be hosted
+  locally. Serving it from Pergamon would let anyone on the hub's WiFi chat
+  on the mesh from a laptop or phone browser with no app install and no
+  internet: connect to a radio over Bluetooth or USB (Chrome/Edge only;
+  Safari lacks Web Bluetooth). Needs a check of its license and whether it
+  runs fully offline once hosted.
 - **Delivery receipts for radio mail.** Tell the sender "delivered to Bob"
   when a held message goes out (costs one more packet per message).
 - **Mailbox at the web bulletin.** Let someone at the hub leave a `/msg` for a

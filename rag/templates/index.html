@@ -133,6 +133,19 @@
         answer.insertBefore(p, answerBody);
       });
 
+      const TOOL_LABELS = {
+        search_library: "searching the library", calculate: "calculating",
+        search_classifieds: "checking classifieds", search_skills: "checking skills",
+        board_posts: "reading the board", pantry: "checking the pantry",
+      };
+      eventSource.addEventListener("tool", (ev) => {
+        const m = ev.data.match(/^(\w+)\((.*)\)$/);
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "· " + (m ? (TOOL_LABELS[m[1]] || m[1]) + (m[2] ? ": " + m[2] : "") : ev.data);
+        answer.insertBefore(p, answerBody);
+      });
+
       eventSource.addEventListener("source", (ev) => {
         sourcesHeader.classList.remove("hidden");
         const li = document.createElement("li");

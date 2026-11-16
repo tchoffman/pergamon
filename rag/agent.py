@@ -203,19 +203,34 @@ def _call(fns: dict[str, Callable[..., str]], name: str, args: dict) -> str:
     return result[:TOOL_RESULT_CHARS]
 
 
+def _setup(question: str, cfg: dict, is_host: bool, extra_system: str):
+    run = Run()
+    schemas, fns = tools_for(cfg, run, is_host)
+    system, domains = guard(question, system_prompt(cfg, AGENT_SYSTEM) + extra_system)
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system},
+                                      {"role": "user", "content": question}]
+    opts = dict(model=cfg["llm_model"], think=cfg.get("think", False),
+                options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]})
+    return run, schemas, fns, messages, opts, domains
+
+
+def _args(c) -> dict:
+    args = c["function"].get("arguments") or {}
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except ValueError:
+            args = {}
+    return dict(args)
+
+
 def answer(question: str, cfg: dict | None = None, *, is_host: bool = True,
            extra_system: str = "", chat=None) -> tuple[str, Run]:
     """Answer with tools. Returns (text, run record)."""
     cfg = cfg or load_config()
-    run = Run()
-    schemas, fns = tools_for(cfg, run, is_host)
-    system, _ = guard(question, system_prompt(cfg, AGENT_SYSTEM) + extra_system)
-    messages: list[dict[str, Any]] = [{"role": "system", "content": system},
-                                      {"role": "user", "content": question}]
+    run, schemas, fns, messages, opts, _ = _setup(question, cfg, is_host, extra_system)
     if chat is None:
         chat = ollama.Client(host=cfg["ollama_host"]).chat
-    opts = dict(model=cfg["llm_model"], think=cfg.get("think", False),
-                options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]})
 
     for _ in range(MAX_ROUNDS):
         resp = chat(messages=messages, tools=schemas, **opts)
@@ -226,20 +241,61 @@ def answer(question: str, cfg: dict | None = None, *, is_host: bool = True,
         messages.append({"role": "assistant", "content": msg.get("content") or "",
                          "tool_calls": calls})
         for c in calls:
-            name = c["function"]["name"]
-            args = c["function"].get("arguments") or {}
-            if isinstance(args, str):
-                try:
-                    args = json.loads(args)
-                except ValueError:
-                    args = {}
-            run.tool_calls.append((name, dict(args)))
+            name, args = c["function"]["name"], _args(c)
+            run.tool_calls.append((name, args))
             messages.append({"role": "tool", "tool_name": name, "content": _call(fns, name, args)})
 
     # Out of rounds: answer with what we have, no more tools.
     messages.append({"role": "user", "content": "Answer now using what you have; no more tools."})
     resp = chat(messages=messages, **opts)
     return (resp["message"].get("content") or "").strip(), run
+
+
+async def astream(question: str, cfg: dict, *, is_host: bool = True, extra_system: str = "",
+                  client=None):
+    """Async version for the web page. Yields (kind, data) events:
+
+      ("notice", banner)      safety domain matched
+      ("tool", "name(args)")  a tool is being used
+      ("source", "[n] label") a library passage the answer may cite
+      ("token", text)         answer text as it is generated
+
+    Each round streams; tool calls arrive at the end of a round, run off the
+    event loop, and the next round streams the answer.
+    """
+    import asyncio
+    run, schemas, fns, messages, opts, domains = _setup(question, cfg, is_host, extra_system)
+    for d in domains:
+        yield ("notice", d.banner)
+    client = client or ollama.AsyncClient(host=cfg["ollama_host"])
+
+    for round_no in range(MAX_ROUNDS + 1):
+        last = round_no == MAX_ROUNDS
+        if last:
+            messages.append({"role": "user", "content": "Answer now using what you have; no more tools."})
+        stream = await client.chat(messages=messages, stream=True,
+                                   **({} if last else {"tools": schemas}), **opts)
+        content, calls = [], []
+        async for chunk in stream:
+            msg = chunk["message"]
+            if msg.get("tool_calls"):
+                calls.extend(msg["tool_calls"])
+            piece = msg.get("content") or ""
+            if piece:
+                content.append(piece)
+                yield ("token", piece)
+        if not calls:
+            return
+        messages.append({"role": "assistant", "content": "".join(content), "tool_calls": calls})
+        for c in calls:
+            name, args = c["function"]["name"], _args(c)
+            run.tool_calls.append((name, args))
+            yield ("tool", f"{name}({', '.join(str(v) for v in args.values())})")
+            before = len(run.sources)
+            result = await asyncio.to_thread(_call, fns, name, args)
+            for i, s in enumerate(run.sources[before:], before + 1):
+                yield ("source", f"[{i}] {s}")
+            messages.append({"role": "tool", "tool_name": name, "content": result})
 
 
 def main(argv: list[str]) -> int:

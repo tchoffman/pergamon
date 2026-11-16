@@ -30,7 +30,9 @@ make clean           # wipe build/ (redownload everything)
 
 ```bash
 pergamon ask "question"
-#   Streams an answer. The model answers from its own knowledge; library
+#   Streams an answer (answer_mode: agent by default — the model decides
+#   whether to search the library, calculate, or check the board, classifieds
+#   and skills; rag mode always retrieves first). The model answers from its own knowledge; library
 #   passages are used to check facts and add detail, and are cited when used.
 #   Passages are filtered twice: by distance (max_distance in rag/config.yaml)
 #   and by a quick model check that each one actually answers the question

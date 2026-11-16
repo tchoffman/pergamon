@@ -50,6 +50,23 @@ class MeshReply:
         return [f"[{i + 1}/{n}] {p}" for i, p in enumerate(pieces)]
 
 
+SHORT_HINT = (
+    "\n\nRespond in at most 4 short sentences, plain text, no lists or markdown. "
+    "This reply goes over low-bandwidth mesh radio, so lead with the most "
+    "important point and never drop a critical safety step to save space."
+)
+_CITES = re.compile(r"\s*\[\d+(?:,\s*\d+)*\]")
+
+
+def _ask_agent(question: str, cfg: dict) -> MeshReply:
+    """Tool-calling answer for a radio user. Radio users are never the host,
+    so private tools (pantry) aren't offered."""
+    from rag import agent
+    text, run = agent.answer(question, cfg, is_host=False, extra_system=SHORT_HINT)
+    top = run.sources[0].split("  (")[0] if run.sources else None
+    return MeshReply(answer=_CITES.sub("", text).strip(), sources=[top] if top else [])
+
+
 def ask(question: str, max_tokens_hint: int = 150, model: str | None = None) -> MeshReply:
     """Run the RAG pipeline synchronously and return a MeshReply.
 
@@ -60,6 +77,8 @@ def ask(question: str, max_tokens_hint: int = 150, model: str | None = None) -> 
     cfg = load_config()
     if model:
         cfg["llm_model"] = model
+    if cfg.get("answer_mode") == "agent":
+        return _ask_agent(question, cfg)
     hits = relevant_hits(cfg, question)
 
     if hits:
@@ -69,23 +88,18 @@ def ask(question: str, max_tokens_hint: int = 150, model: str | None = None) -> 
         sources = []
         user_prompt = f"QUESTION: {frame_question(question, guard(question, '')[1])}"
 
-    short_hint = (
-        "\n\nRespond in at most 4 short sentences, plain text, no lists or markdown. "
-        "This reply goes over low-bandwidth mesh radio, so lead with the most "
-        "important point and never drop a critical safety step to save space."
-    )
     client = ollama.Client(host=cfg["ollama_host"])
     resp = client.chat(
         model=cfg["llm_model"],
         messages=[
-            {"role": "system", "content": guard(question, system_prompt(cfg))[0] + short_hint},
+            {"role": "system", "content": guard(question, system_prompt(cfg))[0] + SHORT_HINT},
             {"role": "user", "content": user_prompt},
         ],
         think=cfg.get("think", False),
         options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]},
     )
     # Inline [n] markers mean nothing on a radio screen; the top source is appended below.
-    answer = re.sub(r"\s*\[\d+(?:,\s*\d+)*\]", "", resp["message"]["content"]).strip()
+    answer = _CITES.sub("", resp["message"]["content"]).strip()
 
     # Trim to just the top source for brevity; include only the article title.
     short_sources: list[str] = []

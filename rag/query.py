@@ -188,6 +188,9 @@ def answer(question: str, cfg: dict | None = None) -> tuple[str, list[str]]:
 
 def ask(question: str) -> int:
     cfg = load_config()
+    if cfg.get("answer_mode") == "agent":
+        from rag import agent
+        return agent.main([question])
     messages, sources, domains = build_messages(cfg, question)
     stream = ollama.Client(host=cfg["ollama_host"]).chat(
         messages=messages, stream=True, **_chat_kwargs(cfg))
