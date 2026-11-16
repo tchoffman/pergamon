@@ -103,3 +103,7 @@ captive portal. Open work is tracked in [GitHub issues](https://github.com/tchof
 ## Why "Pergamon"?
 
 A library that survives when the rest doesn't. Lots of inputs, synthesized answers, trusted when the regular channels are down.
+
+## License
+
+Pergamon is open source under the [GNU AGPL v3](LICENSE): use it, change it, sell it; if you run a modified version for other people, share your changes. See [docs/decisions.md](docs/decisions.md) for the product decisions behind it.
