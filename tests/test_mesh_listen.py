@@ -136,3 +136,22 @@ def test_public_channel_is_logged_not_answered(monkeypatch, capsys):
     listen.on_receive(pkt, iface)
     assert listen._jobs.empty() and iface.sent == []
     assert "hello mesh" in capsys.readouterr().out
+
+
+def test_reader_dead_detection():
+    import threading as th
+
+    class I:
+        pass
+    i = I()
+    t = th.Thread(target=lambda: None)
+    t.start(); t.join()
+    i._rxThread = t
+    assert listen._reader_dead(i)
+    alive = th.Event()
+    t2 = th.Thread(target=alive.wait, daemon=True)
+    t2.start()
+    i._rxThread = t2
+    assert not listen._reader_dead(i)
+    alive.set()
+    assert not listen._reader_dead(I())  # no thread attribute: can't tell, assume fine

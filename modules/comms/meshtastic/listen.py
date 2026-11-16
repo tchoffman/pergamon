@@ -79,10 +79,16 @@ RECONNECT_DELAY_S = 10
 # Radios on current firmware may stay silent for hours unless spoken to, so
 # "deliver when heard" alone can strand mail. Also retry on a timer.
 MAIL_RETRY_S = 900
-# The attached radio reports its own telemetry to the laptop every minute or
-# so. Total silence this long means the link is dead even if nothing said so
-# (seen 2026-11-16: listener ran for hours without hearing anything).
-SILENCE_RECONNECT_S = 600
+# Seen 2026-11-16: the listener ran for hours hearing nothing, with no error.
+# Two checks catch that: the radio library's reader thread has died (checked
+# every loop), or there has been total silence for an hour (a quiet mesh is
+# normal for minutes at a time, so silence alone needs a long fuse).
+SILENCE_RECONNECT_S = 3600
+
+
+def _reader_dead(iface: Any) -> bool:
+    rx = getattr(iface, "_rxThread", None)
+    return rx is not None and not rx.is_alive()
 
 SORRY_TEXT = "[pergamon] Sorry, I couldn't answer that just now. Try again shortly."
 BUSY_TEXT = "[pergamon] Still working on your earlier questions; send this again after they arrive."
@@ -335,6 +341,9 @@ def main() -> int:
             if time.time() >= next_mail_try and not lost.is_set():
                 next_mail_try = time.time() + MAIL_RETRY_S
                 retry_waiting_mail(iface)
+            if not lost.is_set() and _reader_dead(iface):
+                console.print("[red]radio reader thread stopped[/red]")
+                lost.set()
             if time.time() - _last_packet[0] > SILENCE_RECONNECT_S and not lost.is_set():
                 console.print(f"[red]no packets from the radio for {SILENCE_RECONNECT_S // 60} min[/red]")
                 lost.set()
