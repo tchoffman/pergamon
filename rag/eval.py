@@ -32,6 +32,7 @@ class Result:
     answer: str
     seconds: float
     failures: list[str] = field(default_factory=list)
+    tools: list[str] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
@@ -76,12 +77,20 @@ def check(case: dict, answer: str) -> list[str]:
     return failures
 
 
-def run_case(case: dict, model: str, mesh: bool) -> Result:
+def run_case(case: dict, model: str, mesh: bool, mode: str = "rag") -> Result:
     t = time.time()
     try:
         if mesh:
             from modules.comms.meshtastic.common import ask as mesh_ask
             text = mesh_ask(case["question"], model=model).answer
+        elif mode == "agent":
+            from rag import agent
+            cfg = load_config()
+            cfg["llm_model"] = model
+            text, run = agent.answer(case["question"], cfg)
+            r = Result(case["id"], model, text, time.time() - t, check(case, text))
+            r.tools = [f"{n}({', '.join(f'{v}' for v in a.values())})" for n, a in run.tool_calls]
+            return r
         else:
             from rag.query import answer
             cfg = load_config()
@@ -92,10 +101,10 @@ def run_case(case: dict, model: str, mesh: bool) -> Result:
     return Result(case["id"], model, text, time.time() - t, check(case, text))
 
 
-def report(results: list[Result], cases: list[dict], mesh: bool) -> str:
+def report(results: list[Result], cases: list[dict], mesh: bool, mode: str = "rag") -> str:
     by_id = {c["id"]: c for c in cases}
     models = list(dict.fromkeys(r.model for r in results))
-    lines = [f"# Pergamon eval ({datetime.now():%Y-%m-%d %H:%M}, {'mesh' if mesh else 'full'} answers)", ""]
+    lines = [f"# Pergamon eval ({datetime.now():%Y-%m-%d %H:%M}, {'mesh' if mesh else 'full'} answers, {mode} mode)", ""]
     for m in models:
         rs = [r for r in results if r.model == m]
         avg = sum(r.seconds for r in rs) / max(1, len(rs))
@@ -105,7 +114,8 @@ def report(results: list[Result], cases: list[dict], mesh: bool) -> str:
         lines += [f"## {cid}: {by_id[cid]['question']}", ""]
         for r in (r for r in results if r.case_id == cid):
             mark = "PASS" if r.passed else "FAIL — " + "; ".join(r.failures)
-            lines += [f"**{r.model}** ({r.seconds:.0f}s) {mark}", "", r.answer or "_(no answer)_", ""]
+            used = f" · tools: {'; '.join(r.tools)}" if r.tools else ""
+            lines += [f"**{r.model}** ({r.seconds:.0f}s) {mark}{used}", "", r.answer or "_(no answer)_", ""]
     return "\n".join(lines)
 
 
@@ -115,6 +125,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--model", action="append", help="model to test (repeatable)")
     ap.add_argument("--mesh", action="store_true", help="score radio-length answers")
     ap.add_argument("--only", action="append", help="case id to run (repeatable)")
+    ap.add_argument("--mode", choices=["rag", "agent"], default="rag",
+                    help="rag: always retrieve (default); agent: model calls tools")
     args = ap.parse_args(argv)
 
     cases = load_cases()
@@ -131,11 +143,12 @@ def main(argv: list[str] | None = None) -> int:
     # them in and out of memory, and a 15s answer becomes a 15-minute one.
     for m in models:
         for case in cases:
-            r = run_case(case, m, args.mesh)
+            r = run_case(case, m, args.mesh, args.mode)
             results.append(r)
             print(f"{'PASS' if r.passed else 'FAIL'}  {m:30} {r.seconds:5.0f}s  {case['id']}"
+                  + (f"  [{'; '.join(r.tools)}]" if r.tools else "")
                   + ("" if r.passed else f"  ({'; '.join(r.failures)})"), flush=True)
-            out.write_text(report(results, cases, args.mesh))
+            out.write_text(report(results, cases, args.mesh, args.mode))
 
     for m in models:
         rs = [r for r in results if r.model == m]
