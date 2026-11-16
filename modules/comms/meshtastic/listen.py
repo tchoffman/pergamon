@@ -20,7 +20,8 @@ from typing import Any
 
 from rich.console import Console
 
-from modules.comms.meshtastic.common import ask
+from modules.comms.meshtastic import commands
+from modules.comms.meshtastic.common import MeshReply, ask
 from rag.install_config import load_yaml, INSTALL_LOCAL_PATH
 
 console = Console()
@@ -76,8 +77,6 @@ MAX_PENDING_PER_SENDER = 2   # one radio can't fill the queue for everyone else
 SEEN_IDS_KEPT = 200
 RECONNECT_DELAY_S = 10
 
-HELP_TEXT = ("Pergamon offline library. DM me any question and I'll answer in "
-             "numbered parts. 'ping' tests the link.")
 SORRY_TEXT = "[pergamon] Sorry, I couldn't answer that just now. Try again shortly."
 BUSY_TEXT = "[pergamon] Still working on your earlier questions; send this again after they arrive."
 
@@ -89,23 +88,13 @@ _seen: "OrderedDict[Any, None]" = OrderedDict()
 _lock = threading.Lock()
 
 
-def _quick_reply(text: str) -> str | None:
-    """Answers that don't need the model (link tests, help)."""
-    t = text.strip().lower().rstrip("?!.")
-    if t == "ping":
-        return "pong"
-    if t in ("help", "?", ""):
-        return HELP_TEXT
-    return None
-
-
 def _worker() -> None:
     while True:
         interface, sender, text = _jobs.get()
         try:
-            quick = _quick_reply(text)
-            if quick is not None:
-                _send_confirmed(interface, sender, quick)
+            command_reply = commands.run(text)
+            if command_reply is not None:
+                _reply(interface, sender, MeshReply(answer=command_reply, sources=[]))
             else:
                 _reply(interface, sender, ask(text))
         except Exception as e:

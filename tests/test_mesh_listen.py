@@ -81,10 +81,20 @@ def test_long_question_is_truncated(monkeypatch):
     assert len(listen._jobs.get_nowait()[2]) == listen.MAX_QUESTION_CHARS
 
 
-def test_quick_replies_skip_the_model():
-    assert listen._quick_reply("Ping") == "pong"
-    assert listen._quick_reply("help?") == listen.HELP_TEXT
-    assert listen._quick_reply("how do I purify water") is None
+def test_commands_skip_the_model(monkeypatch):
+    _reset(monkeypatch)
+    def no_model(text):
+        raise AssertionError("model should not run for ping")
+    monkeypatch.setattr(listen, "ask", no_model)
+    iface = FakeIface([])
+    listen._jobs.put((iface, "!b", "Ping"))
+    listen._pending["!b"] = 1
+    listen.threading.Thread(target=listen._worker, daemon=True).start()
+    for _ in range(100):
+        if iface.sent:
+            break
+        listen.time.sleep(0.01)
+    assert iface.sent == ["[1/1] pong"]
 
 
 def test_errors_send_a_plain_apology_not_internals(monkeypatch):

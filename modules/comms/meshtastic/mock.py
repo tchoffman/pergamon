@@ -10,7 +10,8 @@ from time import sleep
 
 from rich.console import Console
 
-from modules.comms.meshtastic.common import MAX_MESH_CHARS, ask
+from modules.comms.meshtastic import commands
+from modules.comms.meshtastic.common import MAX_MESH_CHARS, MeshReply, ask
 
 console = Console()
 
@@ -26,7 +27,11 @@ def main() -> int:
         if not q:
             return 0
 
-        reply = ask(q)
+        try:
+            text = commands.run(q)
+        except Exception as e:  # relay down etc.
+            text = f"(command failed: {e})"
+        reply = MeshReply(answer=text, sources=[]) if text is not None else ask(q)
         chunks = reply.chunks()
         console.print(f"[dim]→ {len(chunks)} LoRa packet(s), ~{MAX_MESH_CHARS} chars each[/dim]")
         for c in chunks:
