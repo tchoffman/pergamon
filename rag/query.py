@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from datetime import date
 
@@ -94,19 +95,29 @@ def vet_passages(cfg: dict, question: str, hits: list[dict], chat=None) -> list[
     if chat is None:
         chat = ollama.Client(host=cfg["ollama_host"]).chat
     try:
+        # No format="json": some models (Qwen 3.5 on Ollama 0.40) reject
+        # structured output with a 501. Parse the object out of plain text.
         resp = chat(
             model=cfg["llm_model"],
             messages=[{"role": "system", "content": VET_PROMPT},
                       {"role": "user", "content": f"QUESTION: {question}\n\nPASSAGES:\n{listing}"}],
-            format="json",
             think=cfg.get("think", False),
             options={"temperature": 0, "num_ctx": cfg.get("num_ctx", 8192)},
         )
-        picked = json.loads(resp["message"]["content"]).get("helpful") or []
-        keep = {int(n) for n in picked if str(n).isdigit()}
-    except Exception:
+        keep = _parse_helpful(resp["message"]["content"])
+    except Exception as e:
+        print(f"[pergamon] passage check failed, answering without library: {e!r}", file=sys.stderr)
         return []
     return [h for i, h in enumerate(hits, 1) if i in keep]
+
+
+def _parse_helpful(text: str) -> set[int]:
+    """Numbers from {"helpful": [...]} anywhere in the reply (code fences, prose)."""
+    m = re.search(r"\{[^{}]*\"helpful\"[^{}]*\}", text, re.S)
+    if not m:
+        raise ValueError(f"no helpful list in reply: {text[:120]!r}")
+    picked = json.loads(m.group(0)).get("helpful") or []
+    return {int(n) for n in picked if str(n).isdigit()}
 
 
 def _format_source(meta: dict, kiwix_port: int = 8080) -> str:

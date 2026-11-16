@@ -59,3 +59,10 @@ def test_vet_ignores_out_of_range_numbers():
     hits = _hits("a", "b")
     kept = q.vet_passages({"llm_model": "m"}, "q", hits, chat=_chat_returning('{"helpful": [1, 9, "x"]}'))
     assert [h["text"] for h in kept] == ["a"]
+
+
+def test_vet_parses_json_inside_prose_and_code_fences():
+    hits = _hits("a", "b", "c")
+    reply = 'Sure!\n```json\n{"helpful": [1, 3]}\n```'
+    kept = q.vet_passages({"llm_model": "m"}, "q", hits, chat=_chat_returning(reply))
+    assert [h["text"] for h in kept] == ["a", "c"]
