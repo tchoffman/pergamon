@@ -40,7 +40,7 @@ from rag.nostr import (
 )
 from rag.plan import PLAN_SYSTEM_PROMPT
 from rag.query import (CONTEXT_HEADER, SYSTEM_PROMPT, _format_source, build_context,
-                       relevant_hits, retrieve)
+                       relevant_hits, retrieve, system_prompt)
 
 TEMPLATES_DIR = REPO_ROOT / "rag" / "templates"
 STATIC_DIR = REPO_ROOT / "rag" / "static"
@@ -109,6 +109,7 @@ def _stream_rag(q: str, system: str, user_prefix: str, use_domain_guards: bool =
     (QUESTION or GOAL) so the LLM reads the prompt correctly."""
     cfg = load_config()
     hits = relevant_hits(cfg, q)
+    system = system_prompt(cfg, system)
 
     guarded_system, domains = guard(q, system) if use_domain_guards else (system, [])
     framed = frame_question(q, domains)

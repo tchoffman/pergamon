@@ -13,7 +13,7 @@ from rich.rule import Rule
 
 from rag.config import load_config
 from rag.domains import guard
-from rag.query import CONTEXT_HEADER, build_context, relevant_hits
+from rag.query import CONTEXT_HEADER, build_context, relevant_hits, system_prompt
 
 console = Console()
 
@@ -60,7 +60,7 @@ def make_plan(goal: str, stream: bool = True) -> int:
         context, sources = "", []
         user_prompt = f"GOAL: {goal}"
 
-    system, domains = guard(goal, PLAN_SYSTEM_PROMPT)
+    system, domains = guard(goal, system_prompt(cfg, PLAN_SYSTEM_PROMPT))
     client = ollama.Client(host=cfg["ollama_host"])
     kwargs = dict(
         model=cfg["llm_model"],

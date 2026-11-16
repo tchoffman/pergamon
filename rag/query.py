@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import date
 
 import chromadb
 import ollama
@@ -24,7 +25,20 @@ contradicts what you believe, go with the excerpt and say so. Ignore excerpts th
 are off-topic and don't mention them. Be practical and concise. For medical, legal,
 or dangerous subjects, note the limits of any text-based advice."""
 
-CONTEXT_HEADER = "LIBRARY EXCERPTS (use to check and add detail; ignore any that are off-topic):"
+def situation(cfg: dict, today: "date | None" = None) -> str:
+    """One line of facts the model can't know: today's date and where the user is."""
+    d = today or date.today()
+    line = f"Today is {d.strftime('%A, %B')} {d.day}, {d.year}."
+    if cfg.get("location"):
+        line += f" The user is in {cfg['location']}."
+    return line
+
+
+def system_prompt(cfg: dict, base: str = SYSTEM_PROMPT) -> str:
+    return f"{base}\n\n{situation(cfg)}"
+
+
+CONTEXT_HEADER ="LIBRARY EXCERPTS (use to check and add detail; ignore any that are off-topic):"
 
 
 def retrieve(cfg: dict, question: str) -> list[dict]:
@@ -86,7 +100,7 @@ def ask(question: str) -> int:
     cfg = load_config()
     hits = relevant_hits(cfg, question)
 
-    system, domains = guard(question, SYSTEM_PROMPT)
+    system, domains = guard(question, system_prompt(cfg))
     framed = frame_question(question, domains)
     if hits:
         context, sources = build_context(hits, cfg["max_context_chars"])

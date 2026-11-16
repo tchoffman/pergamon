@@ -32,4 +32,14 @@ def load_config(path: str | Path | None = None) -> dict:
         # Falling back to rag/config.yaml's defaults is fine if anything above fails.
         pass
 
+    # Per-install settings that answers depend on (gitignored local file).
+    try:
+        from rag.install_config import INSTALL_LOCAL_PATH, load_yaml
+        local = load_yaml(INSTALL_LOCAL_PATH) if INSTALL_LOCAL_PATH.exists() else {}
+        for key in ("location", "llm_model"):
+            if local.get(key):
+                cfg[key] = local[key]
+    except Exception:
+        pass
+
     return cfg
