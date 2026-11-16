@@ -292,7 +292,7 @@ def _on_receive(packet: dict, interface) -> None:
         # Public channel: log it so the host can follow the conversation, but
         # never answer (replying to broadcasts would flood the mesh).
         if text:
-            console.print(f"[cyan][channel {channel}] {_node_name(interface, sender)} "
+            console.print(f"[cyan]\\[channel {channel}] {_node_name(interface, sender)} "
                           f"({sender}): {text}[/cyan]")
         return
 

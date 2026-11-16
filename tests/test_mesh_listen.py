@@ -135,7 +135,8 @@ def test_public_channel_is_logged_not_answered(monkeypatch, capsys):
            "fromId": "!c", "from": 3, "toId": "^all", "id": 99}
     listen.on_receive(pkt, iface)
     assert listen._jobs.empty() and iface.sent == []
-    assert "hello mesh" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "[channel 0]" in out and "hello mesh" in out
 
 
 def test_reader_dead_detection():
