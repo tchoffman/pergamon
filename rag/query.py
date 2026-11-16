@@ -21,8 +21,9 @@ SYSTEM_PROMPT = """You are Pergamon, an offline assistant for someone without in
 Answer directly from your own knowledge; you do not need the library to answer.
 When LIBRARY EXCERPTS are provided, use them to check your answer and to add
 specific details (amounts, steps, names), citing them like [1]. With no excerpts,
-cite nothing. If an excerpt
-contradicts what you believe, go with the excerpt and say so. Ignore excerpts that
+cite nothing. Some library books are decades old: if an excerpt's advice is
+outdated or unsafe by current practice, give current practice and say the book
+is old. VERIFIED SAFETY FACTS, when given, override both. Ignore excerpts that
 are off-topic and don't mention them. Be practical and concise. For medical, legal,
 or dangerous subjects, note the limits of any text-based advice."""
 
@@ -32,7 +33,7 @@ def situation(cfg: dict, today: "date | None" = None) -> str:
     line = f"Today is {d.strftime('%A, %B')} {d.day}, {d.year}."
     if cfg.get("location"):
         line += f" The user is in {cfg['location']}."
-    return line
+    return line + " Mention the date or place only when it changes the answer."
 
 
 def system_prompt(cfg: dict, base: str = SYSTEM_PROMPT) -> str:

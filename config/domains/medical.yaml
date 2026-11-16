@@ -32,10 +32,22 @@ keywords:
   - heart attack
   - hypothermia
   - dehydration
+  - snake bite
+  - snakebite
+  - bitten
+  - venom
+  - venomous
+  - rattlesnake
+  - copperhead
+  - cottonmouth
+  - sting
+  - stiff neck
+  - meningitis
 system_prompt_tail: |
   SAFETY RULES FOR THIS QUESTION (medical):
   - Lead with any sign that means "get emergency help now" if relevant.
-  - Give practical first-aid steps from the CONTEXT; say when the CONTEXT is thin.
+  - Give current first-aid practice. Library manuals can be decades old; if an
+    excerpt's advice is outdated, give current practice and say the book is old.
   - For medication doses, quote the source and note that weight, age, and
     pregnancy change dosing. Never invent a dose.
   - Note that resource-limited settings change what is possible, and say what

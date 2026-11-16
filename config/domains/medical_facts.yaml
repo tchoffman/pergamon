@@ -1,0 +1,38 @@
+# Curated first-aid facts for medical questions. Same format and rules as
+# foraging_facts.yaml: a trigger matches when ALL its words appear in the
+# question. Only standard, current guidance from public-health sources.
+#
+# Why these exist: the library's survival manuals are decades old and some of
+# their first aid is now known to cause harm. In testing, the model repeated
+# the manual's cut-and-suck snakebite advice.
+
+facts:
+  - id: snakebite
+    # Source: CDC/NIOSH venomous snake guidance; MedlinePlus "Snake bites".
+    triggers:
+      - [snake, bite]
+      - [snakebite]
+      - [snake, bit]
+      - [rattlesnake]
+      - [copperhead]
+      - [cottonmouth]
+      - [venom]
+    fact: >-
+      Current snakebite first aid: get to medical care as fast as possible,
+      since antivenom is the real treatment. Keep the person still and calm,
+      with the bite at or below heart level. Remove rings and tight items
+      before swelling starts. Cover with a clean, dry dressing. Do NOT cut the
+      bite, suck out venom, use a tourniquet, apply ice, or give alcohol.
+      Older manuals that recommend cutting and suction are outdated; those
+      methods cause harm.
+
+  - id: meningitis
+    # Source: CDC meningitis symptoms guidance.
+    triggers:
+      - [stiff, neck]
+      - [meningitis]
+    fact: >-
+      Fever with a stiff neck, severe headache, confusion, light sensitivity,
+      or a rash that doesn't fade when pressed can be bacterial meningitis,
+      which can kill within hours. Get emergency medical help immediately.
+      People in close contact may need preventive antibiotics.

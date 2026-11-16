@@ -1,0 +1,36 @@
+# Curated food-safety facts. Same format as foraging_facts.yaml.
+# Source for outage numbers: USDA FSIS "Keep Your Food Safe During Emergencies".
+#
+# Why these exist: in testing the model said frozen meat keeps "indefinitely"
+# after the power goes out (it misread a cold-climate passage in a survival
+# manual).
+
+facts:
+  - id: outage-freezer
+    triggers:
+      - [freezer]
+      - [frozen]
+      - [power, outage]
+      - [power, out]
+      - [fridge]
+      - [refrigerator]
+    fact: >-
+      USDA power-outage limits: keep the doors closed. A full freezer holds a
+      safe temperature about 48 hours, a half-full one about 24 hours. A
+      refrigerator keeps food safe about 4 hours. Frozen food that still has
+      ice crystals or is at 40°F (4°C) or below can be refrozen or cooked.
+      Throw out refrigerated meat, poultry, fish, eggs, milk, and leftovers
+      that have been above 40°F for more than 2 hours. Never taste food to
+      decide whether it is safe.
+
+  - id: canned-goods
+    triggers:
+      - [canned]
+      - [canning]
+      - [botulism]
+      - [bulging]
+    fact: >-
+      Discard any can or home-canned jar that is bulging, leaking, deeply
+      dented on a seam, spurts when opened, or smells off; it may carry
+      botulism, which can be fatal in tiny amounts. Do not taste it. Low-acid
+      foods (vegetables, meats) must be pressure-canned, not water-bath canned.

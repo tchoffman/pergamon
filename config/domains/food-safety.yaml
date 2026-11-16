@@ -1,0 +1,27 @@
+name: food-safety
+title: Food safety
+banner: >-
+  Food-safety question detected. When in doubt, throw it out; food poisoning is
+  far more dangerous when medical care is hard to reach.
+keywords:
+  - power outage
+  - power goes out
+  - power went out
+  - power is out
+  - freezer
+  - frozen
+  - thawed
+  - refrigerator
+  - fridge
+  - spoiled
+  - gone bad
+  - food poisoning
+  - botulism
+  - canned
+  - canning
+  - leftovers
+system_prompt_tail: |
+  SAFETY RULES FOR THIS QUESTION (food safety):
+  - Give the specific time and temperature limits, not general reassurance.
+  - Say plainly what must be thrown out. Smell and look are not reliable tests.
+  - Do not suggest tasting food to check whether it is safe.

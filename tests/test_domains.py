@@ -90,3 +90,24 @@ def test_frame_question_only_reframes_foraging():
     assert "safety guidance" in frame_question(q, detect(q))
     q2 = "how do I stop bleeding"
     assert frame_question(q2, detect(q2)) == q2
+
+
+def test_snakebite_gets_current_first_aid_not_cut_and_suck():
+    system, matches = guard("how do I treat a snake bite?", "BASE")
+    assert "medical" in {d.name for d in matches}
+    assert "Do NOT cut the" in system and "outdated" in system
+
+
+def test_power_outage_freezer_gets_usda_limits():
+    system, matches = guard("How long can I keep frozen meat after the power goes out?", "BASE")
+    assert "food-safety" in {d.name for d in matches}
+    assert "48 hours" in system
+
+
+def test_stiff_neck_fever_flags_meningitis():
+    system, _ = guard("my neighbor has a fever and a stiff neck", "BASE")
+    assert "meningitis" in system
+
+
+def test_facts_files_are_not_loaded_as_domains():
+    assert not any(d.name.endswith("_facts") for d in load_domains())

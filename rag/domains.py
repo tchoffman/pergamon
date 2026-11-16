@@ -53,9 +53,10 @@ def detect(question: str) -> list[Domain]:
     return [d for d in load_domains() if d.pattern.search(question)]
 
 
-@lru_cache(maxsize=1)
-def load_facts() -> tuple[dict, ...]:
-    path = DOMAINS_DIR / "foraging_facts.yaml"
+@lru_cache(maxsize=None)
+def load_facts(domain: str = "foraging") -> tuple[dict, ...]:
+    """Curated facts for one domain, from config/domains/<domain>_facts.yaml."""
+    path = DOMAINS_DIR / f"{domain}_facts.yaml"
     if not path.exists():
         return ()
     return tuple((yaml.safe_load(path.read_text()) or {}).get("facts") or [])
@@ -70,21 +71,22 @@ def _words(text: str) -> set[str]:
     return out
 
 
-def matching_facts(question: str) -> list[dict]:
-    """Curated danger facts whose triggers all appear in the question."""
+def matching_facts(question: str, domain: str = "foraging") -> list[dict]:
+    """Curated facts for `domain` whose triggers all appear in the question."""
     words = _words(question)
-    return [f for f in load_facts()
+    return [f for f in load_facts(domain)
             if any(all(t.lower() in words for t in trig) for trig in f.get("triggers") or [])]
 
 
 def guard(question: str, system_prompt: str) -> tuple[str, list[Domain]]:
     """Return (system_prompt with any matching domain tails appended, matches).
 
-    For foraging questions, curated danger facts that match are injected
-    first — the local model's own identification knowledge is not reliable.
+    Curated facts for each matched domain are injected first: the local
+    model's own knowledge is unreliable on these, and the library's older
+    manuals carry outdated advice (e.g. cut-and-suck for snakebite).
     """
     matches = detect(question)
-    facts = matching_facts(question) if any(d.name == "foraging" for d in matches) else []
+    facts = [f for d in matches for f in matching_facts(question, d.name)]
     if not matches:
         return system_prompt, []
     parts = [system_prompt]
