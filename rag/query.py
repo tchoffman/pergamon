@@ -99,6 +99,7 @@ def vet_passages(cfg: dict, question: str, hits: list[dict], chat=None) -> list[
             messages=[{"role": "system", "content": VET_PROMPT},
                       {"role": "user", "content": f"QUESTION: {question}\n\nPASSAGES:\n{listing}"}],
             format="json",
+            think=cfg.get("think", False),
             options={"temperature": 0, "num_ctx": cfg.get("num_ctx", 8192)},
         )
         picked = json.loads(resp["message"]["content"]).get("helpful") or []
@@ -138,29 +139,39 @@ def build_context(hits: list[dict], cap: int) -> tuple[str, list[str]]:
     return "\n".join(parts), sources
 
 
-def ask(question: str) -> int:
-    cfg = load_config()
+def build_messages(cfg: dict, question: str) -> tuple[list[dict], list[str], list]:
+    """Everything the model sees for one question: (messages, source labels, domains)."""
     hits = relevant_hits(cfg, question)
-
     system, domains = guard(question, system_prompt(cfg))
     framed = frame_question(question, domains)
     if hits:
         context, sources = build_context(hits, cfg["max_context_chars"])
         user_prompt = f"{CONTEXT_HEADER}\n{context}\n\nQUESTION: {framed}"
     else:
-        context, sources = "", []
+        sources = []
         user_prompt = f"QUESTION: {framed}"
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": user_prompt}]
+    return messages, sources, domains
 
-    client_ollama = ollama.Client(host=cfg["ollama_host"])
-    stream = client_ollama.chat(
-        model=cfg["llm_model"],
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_prompt},
-        ],
-        stream=True,
-        options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]},
-    )
+
+def _chat_kwargs(cfg: dict) -> dict:
+    return dict(model=cfg["llm_model"], think=cfg.get("think", False),
+                options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]})
+
+
+def answer(question: str, cfg: dict | None = None) -> tuple[str, list[str]]:
+    """Non-streaming full-length answer: (text, source labels)."""
+    cfg = cfg or load_config()
+    messages, sources, _ = build_messages(cfg, question)
+    resp = ollama.Client(host=cfg["ollama_host"]).chat(messages=messages, **_chat_kwargs(cfg))
+    return resp["message"]["content"].strip(), sources
+
+
+def ask(question: str) -> int:
+    cfg = load_config()
+    messages, sources, domains = build_messages(cfg, question)
+    stream = ollama.Client(host=cfg["ollama_host"]).chat(
+        messages=messages, stream=True, **_chat_kwargs(cfg))
 
     for d in domains:
         console.print(f"[bold yellow]⚠ {d.banner}[/bold yellow]")

@@ -36,3 +36,7 @@ location: ""
 # Generation parameters.
 temperature: 0.2          # low → factual; raise for more exploratory answers
 num_ctx: 8192             # LLM context window (model-dependent)
+
+# Some models (Qwen 3.5, Gemma 4) can "think" silently before answering. On a
+# 16GB laptop that turns a 30s answer into 3+ minutes; off by default.
+think: false

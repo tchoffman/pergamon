@@ -135,6 +135,7 @@ def _stream_rag(q: str, system: str, user_prefix: str, use_domain_guards: bool =
                 {"role": "user", "content": user_prompt},
             ],
             stream=True,
+            think=cfg.get("think", False),
             options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]},
         )
         for chunk in stream:

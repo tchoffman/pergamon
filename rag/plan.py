@@ -68,6 +68,7 @@ def make_plan(goal: str, stream: bool = True) -> int:
             {"role": "system", "content": system},
             {"role": "user", "content": user_prompt},
         ],
+        think=cfg.get("think", False),
         options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]},
     )
 

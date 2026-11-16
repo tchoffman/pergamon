@@ -81,6 +81,7 @@ def ask(question: str, max_tokens_hint: int = 150, model: str | None = None) -> 
             {"role": "system", "content": guard(question, system_prompt(cfg))[0] + short_hint},
             {"role": "user", "content": user_prompt},
         ],
+        think=cfg.get("think", False),
         options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]},
     )
     # Inline [n] markers mean nothing on a radio screen; the top source is appended below.
