@@ -308,9 +308,27 @@ Each service's `README.md` has its own first-time-setup walkthrough.
 
 `pergamon web` (default port 8090) serves:
 
+**HTTPS (secure connection).** Phones only allow home-screen install, camera
+and notifications on HTTPS pages. Turn it on in `config/install.local.yaml`:
+
+```yaml
+hub:
+  https: true
+  https_port: 8443
+```
+
+The hub then makes its own certificate authority (once, in `build/tls/`) and a
+server certificate for its current LAN addresses, reissued automatically when
+the IP changes or expiry nears. Plain HTTP stays on so the captive portal still
+pops up; the welcome page links phones to `/trust`, which serves the
+certificate (an iPhone profile or an Android/Mac/Windows file) with steps for
+each, and turns green once the device trusts the hub. `pergamon web` prints the
+certificate fingerprint so people can check they're trusting the right hub.
+
 | Page | What |
 |---|---|
 | `/welcome` | Landing page for phones on the hub WiFi; create or restore this device's key |
+| `/trust` | One-time secure-connection setup (when `hub.https` is on) |
 | `/` | Ask / Plan / Search the library |
 | `/board` | Community board |
 | `/classifieds` | Browse, post, renew, close, matches |

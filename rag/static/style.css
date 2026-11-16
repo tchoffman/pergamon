@@ -8,6 +8,7 @@
   --code-bg: #f0eee8;
   --warn-bg: #fff4d6;
   --warn-fg: #665200;
+  --ok-fg: #1e6b2f;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,6 +22,7 @@
     --code-bg: #262320;
     --warn-bg: #3a3215;
     --warn-fg: #ffcf4d;
+    --ok-fg: #7bd88f;
   }
 }
 
@@ -267,3 +269,9 @@ nav.status a:hover { text-decoration: underline; }
 .actions { margin-top: 0.5rem; display: flex; gap: 0.5rem; }
 .small-btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
 .small-btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+
+.ok { color: var(--ok-fg); }
+details { margin: 0.6rem 0; }
+details ol { margin: 0.4rem 0 0.8rem; padding-left: 1.3rem; }
+code { word-break: break-all; }
+a { color: var(--accent); }

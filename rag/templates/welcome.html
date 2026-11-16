@@ -14,6 +14,11 @@
   <main>
     <p>You're connected to the local community network. There is no internet here — everything
       below runs on a machine nearby.</p>
+    {% if offer_https %}
+    <div class="listing"><a href="/trust"><strong>Set up a secure connection</strong></a>
+      <div class="muted small">One-time step, about a minute. Lets you add Pergamon to your home
+        screen and use your camera for scanning.</div></div>
+    {% endif %}
     <div class="listing"><a href="/board"><strong>Community board</strong></a>
       <div class="muted small">Local news, notices, events, lost &amp; found</div></div>
     <div class="listing"><a href="/classifieds"><strong>Classifieds</strong></a>

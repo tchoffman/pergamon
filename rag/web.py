@@ -715,7 +715,80 @@ for _p in _PROBE_PATHS:
 
 @app.get("/welcome", response_class=HTMLResponse)
 def welcome(request: Request):
-    return templates.TemplateResponse(request, "welcome.html", {"status": _status()})
+    https_on, _ = _https_settings()
+    return templates.TemplateResponse(request, "welcome.html", {
+        "status": _status(),
+        "offer_https": https_on and request.url.scheme != "https"})
+
+
+# ─────────────────────────── secure connection setup ───────────────────────────
+# Phones fetch the hub's root certificate over plain HTTP, trust it once, then
+# use HTTPS. See rag/tls.py.
+
+from fastapi.responses import Response  # noqa: E402
+
+
+def _https_settings() -> tuple[bool, int]:
+    from rag.serve import hub_https_settings
+    return hub_https_settings()
+
+
+def _require_https_on() -> None:
+    if not _https_settings()[0]:
+        raise HTTPException(404, "Secure connections are not turned on for this hub.")
+
+
+def _device(request: Request) -> str:
+    ua = (request.headers.get("user-agent") or "").lower()
+    if "iphone" in ua or "ipad" in ua:
+        return "ios"
+    if "android" in ua:
+        return "android"
+    if "macintosh" in ua or "mac os x" in ua:
+        return "mac"
+    if "windows" in ua:
+        return "windows"
+    return "other"
+
+
+@app.get("/trust", response_class=HTMLResponse)
+def trust_page(request: Request):
+    from rag import tls
+    _require_https_on()
+    _, https_port = _https_settings()
+    host = request.url.hostname or "localhost"
+    return templates.TemplateResponse(request, "trust.html", {
+        "device": _device(request),
+        "secure": request.url.scheme == "https",
+        "secure_url": f"https://{host}:{https_port}/welcome",
+        "check_url": f"https://{host}:{https_port}/trust/check",
+        "fingerprint": tls.ca_fingerprint(),
+        "ca_name": tls.ca_name(),
+    })
+
+
+@app.get("/trust/pergamon-ca.crt")
+def trust_ca_cert():
+    from rag import tls
+    _require_https_on()
+    return Response(tls.ca_der(), media_type="application/x-x509-ca-cert",
+                    headers={"Content-Disposition": 'attachment; filename="pergamon-ca.crt"'})
+
+
+@app.get("/trust/pergamon.mobileconfig")
+def trust_mobileconfig():
+    from rag import tls
+    _require_https_on()
+    return Response(tls.mobileconfig(), media_type="application/x-apple-aspen-config",
+                    headers={"Content-Disposition": 'attachment; filename="pergamon.mobileconfig"'})
+
+
+@app.get("/trust/check")
+def trust_check():
+    """Fetched cross-origin from the HTTP setup page: it only succeeds once the
+    browser trusts the hub's certificate, so the page can say "done"."""
+    return Response('{"secure": true}', media_type="application/json",
+                    headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-store"})
 
 
 

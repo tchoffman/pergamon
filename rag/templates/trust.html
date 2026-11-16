@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pergamon — secure connection</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header><h1>Secure connection</h1>
+    <div class="status muted">One-time setup for this device</div></header>
+  <main>
+    {% if secure %}
+      <p id="state" class="ok"><strong>You're connected securely.</strong></p>
+      <p><a href="/welcome">Continue to Pergamon →</a></p>
+    {% else %}
+      <p>This hub isn't on the internet, so it vouches for itself with its own certificate.
+        Tell this device to trust it once, and Pergamon works like a normal secure website:
+        you can add it to your home screen and use the camera.</p>
+
+      <p id="state" class="muted">Checking… not trusted yet on this device.</p>
+      <p id="go" class="hidden"><a href="{{ secure_url }}"><strong>Continue securely →</strong></a></p>
+
+      <details {% if device == "ios" %}open{% endif %}>
+        <summary><strong>iPhone / iPad</strong></summary>
+        <ol>
+          <li>In Safari, tap <a href="/trust/pergamon.mobileconfig">Download profile</a>, then <em>Allow</em>.</li>
+          <li>Open <strong>Settings</strong>. Tap <em>Profile Downloaded</em> near the top
+            (or General → VPN &amp; Device Management), then <em>Install</em>. It will say
+            "Not Verified"; that's expected for a hub with no internet.</li>
+          <li>Go to Settings → General → About → <strong>Certificate Trust Settings</strong>
+            and switch on <em>{{ ca_name }}</em>.</li>
+          <li>Come back here; this page turns green.</li>
+        </ol>
+      </details>
+
+      <details {% if device == "android" %}open{% endif %}>
+        <summary><strong>Android</strong></summary>
+        <ol>
+          <li>Tap <a href="/trust/pergamon-ca.crt">Download certificate</a>.</li>
+          <li>Open <strong>Settings</strong> and search for <em>CA certificate</em>
+            (usually Security → More security settings → Encryption &amp; credentials →
+            Install a certificate → CA certificate).</li>
+          <li>Tap <em>Install anyway</em> and pick <em>pergamon-ca.crt</em> from Downloads.</li>
+          <li>Come back here in Chrome; this page turns green.</li>
+        </ol>
+      </details>
+
+      <details {% if device == "mac" %}open{% endif %}>
+        <summary><strong>Mac</strong></summary>
+        <ol>
+          <li><a href="/trust/pergamon-ca.crt">Download the certificate</a> and open it; it goes
+            into Keychain Access.</li>
+          <li>In Keychain Access, double-click <em>{{ ca_name }}</em>, open <em>Trust</em>, and
+            set <em>When using this certificate</em> to <strong>Always Trust</strong>.</li>
+        </ol>
+      </details>
+
+      <details {% if device == "windows" %}open{% endif %}>
+        <summary><strong>Windows</strong></summary>
+        <ol>
+          <li><a href="/trust/pergamon-ca.crt">Download the certificate</a> and open it.</li>
+          <li>Choose <em>Install Certificate</em>, then place it in
+            <strong>Trusted Root Certification Authorities</strong>.</li>
+        </ol>
+      </details>
+
+      <p class="muted small">Firefox keeps its own list: in Firefox, use Settings → Privacy &amp;
+        Security → Certificates → View Certificates → Authorities → Import.</p>
+    {% endif %}
+
+    <p class="muted small">To make sure you're trusting the right hub, compare this fingerprint
+      with the one the host sees when Pergamon starts:<br><code>{{ fingerprint }}</code></p>
+  </main>
+  {% if not secure %}
+  <script>
+    // The check URL is HTTPS: the request only succeeds once this browser trusts the hub.
+    const state = document.getElementById("state");
+    const go = document.getElementById("go");
+    async function check() {
+      try {
+        const r = await fetch("{{ check_url }}", {cache: "no-store"});
+        if (r.ok) {
+          state.className = "ok";
+          state.innerHTML = "<strong>Done — this device trusts the hub.</strong>";
+          go.classList.remove("hidden");
+          return;
+        }
+      } catch (e) { /* not trusted yet, or hub HTTPS not reachable */ }
+      setTimeout(check, 3000);
+    }
+    check();
+  </script>
+  {% endif %}
+</body>
+</html>
