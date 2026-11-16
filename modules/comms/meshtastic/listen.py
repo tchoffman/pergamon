@@ -63,6 +63,7 @@ def _send_confirmed(iface: Any, dest_id: str, text: str) -> bool:
 def _reply(iface: Any, dest_id: str, reply):
     chunks = reply.chunks()
     console.print(f"[dim]  → {len(chunks)} LoRa packet(s)[/dim]")
+    console.print(f"[green]  {reply.answer}[/green]" + (f" [dim]({reply.sources[0]})[/dim]" if reply.sources else ""))
     for i, c in enumerate(chunks, 1):
         if not _send_confirmed(iface, dest_id, c):
             console.print(f"[red]  giving up at part {i}/{len(chunks)}[/red]")
