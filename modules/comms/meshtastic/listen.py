@@ -20,7 +20,7 @@ from typing import Any
 
 from rich.console import Console
 
-from modules.comms.meshtastic import commands
+from modules.comms.meshtastic import commands, mailbox
 from modules.comms.meshtastic.common import MeshReply, ask
 from rag.install_config import load_yaml, INSTALL_LOCAL_PATH
 
@@ -86,13 +86,73 @@ _jobs: "queue.Queue[tuple[Any, str, str]]" = queue.Queue()
 _pending: dict[str, int] = {}
 _seen: "OrderedDict[Any, None]" = OrderedDict()
 _lock = threading.Lock()
+_delivering: set[str] = set()
+_mailbox: "mailbox.Mailbox | None" = None
+
+
+def _get_mailbox() -> "mailbox.Mailbox":
+    global _mailbox
+    if _mailbox is None:
+        _mailbox = mailbox.Mailbox()
+    return _mailbox
+
+
+def _node_name(interface: Any, node_id: str) -> str:
+    u = ((getattr(interface, "nodes", None) or {}).get(node_id) or {}).get("user") or {}
+    return u.get("longName") or u.get("shortName") or node_id
+
+
+def _deliver_mail(interface: Any, recipient: str) -> None:
+    """Send everything waiting for `recipient`; anything unconfirmed stays queued."""
+    box = _get_mailbox()
+    for m in box.pending_for(recipient):
+        text = mailbox.format_delivery(m, _node_name(interface, m["sender"]))
+        if not _send_confirmed(interface, recipient, text):
+            console.print(f"[yellow]  mail for {recipient} not confirmed; will retry when heard again[/yellow]")
+            return
+        box.mark_delivered(m["id"])
+        console.print(f"[green]  delivered mail #{m['id']} to {recipient}[/green]")
+
+
+def _handle_msg(interface: Any, sender: str, text: str) -> str | None:
+    """'/msg who text' → confirmation for the sender; None if not a /msg."""
+    try:
+        parsed = mailbox.parse_msg(text)
+        if parsed is None:
+            return None
+        who, body = parsed
+        recipient = mailbox.resolve_recipient(who, getattr(interface, "nodes", None) or {})
+        _get_mailbox().deposit(sender, recipient, body)
+    except mailbox.MailboxError as e:
+        return str(e)
+    _queue_delivery(interface, recipient)  # they may be in range right now
+    return f"Saved for {_node_name(interface, recipient)}. I'll deliver it when I hear their radio."
+
+
+def _queue_delivery(interface: Any, recipient: str) -> None:
+    with _lock:
+        if recipient in _delivering:
+            return
+        _delivering.add(recipient)
+    _jobs.put((interface, recipient, None))
 
 
 def _worker() -> None:
     while True:
         interface, sender, text = _jobs.get()
+        if text is None:  # mail delivery job, not a question
+            try:
+                _deliver_mail(interface, sender)
+            except Exception as e:
+                console.print(f"[red]mail delivery failed: {e!r}[/red]")
+            finally:
+                with _lock:
+                    _delivering.discard(sender)
+            continue
         try:
-            command_reply = commands.run(text)
+            command_reply = _handle_msg(interface, sender, text)
+            if command_reply is None:
+                command_reply = commands.run(text)
             if command_reply is not None:
                 _reply(interface, sender, MeshReply(answer=command_reply, sources=[]))
             else:
@@ -125,6 +185,16 @@ def _already_seen(packet: dict) -> bool:
 
 def on_receive(packet: dict, interface) -> None:
     """Called by Meshtastic's pubsub for each received packet."""
+    # Any packet at all (position, telemetry, text) proves a radio is in
+    # range: hand over mail waiting for it.
+    heard = packet.get("fromId")
+    if heard:
+        try:
+            if _get_mailbox().has_pending(heard):
+                _queue_delivery(interface, heard)
+        except Exception as e:
+            console.print(f"[red]mailbox check failed: {e!r}[/red]")
+
     decoded = packet.get("decoded") or {}
     if decoded.get("portnum") != "TEXT_MESSAGE_APP":
         return

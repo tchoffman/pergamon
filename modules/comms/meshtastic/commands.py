@@ -10,6 +10,7 @@ goes to the library. Bare "ping" and "help" also work.
     /news [category]   latest board posts
     /find <words>      live classifieds matching the words
     /skills <words>    people offering a matching skill
+    /msg <who> <text>  leave a message for another radio (handled by the listener)
 """
 from __future__ import annotations
 
@@ -17,7 +18,7 @@ import time
 from typing import Callable
 
 HELP = ("Pergamon offline library. DM any question for an answer. Commands: "
-        "/news, /find <item>, /skills <skill>, ping.")
+        "/news, /find <item>, /skills <skill>, /msg <name> <text>, ping.")
 MAX_ITEMS = 3
 SNIPPET = 90
 
@@ -114,7 +115,12 @@ def skills(arg: str, relays: list[str]) -> str:
     return "\n".join(lines) + more
 
 
+def _msg_needs_radio(arg: str, relays: list[str]) -> str:
+    return "Radio mail is handled by 'pergamon mesh listen' on a real radio."
+
+
 COMMANDS: dict[str, Callable[[str, list[str]], str]] = {
+    "msg": _msg_needs_radio,
     "news": news, "board": news, "find": find, "skills": skills, "skill": skills,
 }
 
