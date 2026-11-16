@@ -13,10 +13,32 @@ to run, what "pass" looks like, and what to write down. Two setups:
 Record results in a GitHub issue (one comment per test) so failures turn
 into fixes.
 
+## Results so far (2026-11-15, Setup A)
+
+| Test | Result |
+|---|---|
+| 0. Bring-up | Pass. Both radios flashed with 2.7.26. Pergamon-A `!e06e2b0c`, Handheld-B `!e06fbbd0`, laptop port `/dev/cu.usbserial-0001` |
+| 1. Send/receive | Pass after a key exchange (see gotcha below). Traceroute both ways ~6 dB SNR at a few feet |
+| 2. Ask over mesh | Pass after a fix: only part 1 of multi-part answers arrived until parts were sent one at a time with acks. 4-part reply now arrives in ~16 s |
+| Reconnect | Pass: radio reboot fires `connection.lost`; port reopens in ~5 s |
+
+**Gotchas found on test day**
+
+- **New radios ship with Heltec's factory test firmware** (screen says
+  "LORA MODE 0"). Flash Meshtastic first.
+- **Chrome's flasher tab keeps the serial port open** after flashing. Close
+  it, or every CLI call fails with "Resource busy".
+- **Direct messages need both radios to know each other's key.** A radio
+  announces its key at boot; if the other one was off then, DMs fail with
+  `PKI_UNKNOWN_PUBKEY` / `PKI_SEND_FAIL_PUBLIC_KEY` while broadcasts still
+  work. Fix: send one DM from the phone app (or use "Exchange user info"), or
+  reboot both radios while both are powered.
+
 ## 0. Bring-up (each radio)
 
 1. Flash current Meshtastic firmware: https://flasher.meshtastic.org (Chrome
-   or Edge, USB-C *data* cable). Pick "Heltec V3".
+   or Edge, USB-C *data* cable). Pick "Heltec V3". Close the flasher tab
+   afterwards — it holds the serial port.
 2. Set the region — the radio will not transmit until you do:
    `meshtastic --set lora.region US` (or use the phone app).
 3. Name them: `meshtastic --set-owner "Pergamon-A"` and `"Handheld-B"`.
@@ -108,13 +130,20 @@ sync." This tests the full town-to-town loop with today's tools:
 **Pass:** the post appears on B both ways. (Requires the nostr-relay
 service running on both, so Docker must be running.)
 
-## Known limits going in
+## 7. Radio commands and mailbox (Setup A)
 
-- Answers are capped near 200 characters per packet and the prompt asks for
-  two sentences, so detailed answers will be terse.
-- No store-and-forward yet: if the handheld is out of range when the reply
-  goes out, those packets are lost.
-- The listener has only been tested in mock mode before this.
+1. Phone → Pergamon-A: `ping` → `pong`; `help` → command list.
+2. `/news`, `/find eggs`, `/skills welding` → short lists from the board,
+   classifieds and skills (or "board is offline" if the relay isn't running).
+3. `/msg <other radio name> hello` → "Saved for …". Power the other radio off
+   and on: the message arrives after it checks in.
+
+## Known limits
+
+- Answers are capped near 200 characters per packet and radio answers are
+  asked to stay within 4 short sentences.
+- Answer parts that fail 3 delivery attempts are dropped (the log says
+  where it gave up). Mail (`/msg`) is held and retried; answers are not.
 
 ## Ideas this test day could unlock
 

@@ -30,9 +30,13 @@ make clean           # wipe build/ (redownload everything)
 
 ```bash
 pergamon ask "question"
-#   Streams a RAG answer. Retrieves top-K chunks, feeds to the LLM with
-#   citations. Prints Sources at the end — each cites the ZIM article URL
-#   (if applicable) and chunk index.
+#   Streams an answer. The model answers from its own knowledge; library
+#   passages are used to check facts and add detail, and are cited when used.
+#   Passages are filtered twice: by distance (max_distance in rag/config.yaml)
+#   and by a quick model check that each one actually answers the question
+#   (vet_passages). Safety domains (config/domains/) inject curated facts for
+#   medical, food-safety, foraging and electrical questions. The model is told
+#   today's date and the install's location (location: in install.local.yaml).
 
 pergamon plan "goal"
 #   Same retrieval but with a planner-tuned system prompt. Output is
@@ -42,6 +46,11 @@ pergamon plan "goal"
 pergamon search "query" [--k N]
 #   Raw semantic search — top-K chunks with sources + previews. No LLM.
 #   Default K is 6; override with --k.
+
+pergamon eval [--model M ...] [--mesh] [--only ID ...]
+#   Score answers against config/eval/questions.yaml (must-say / must-never-say
+#   checks, negation-aware). Runs one model at a time. Report in build/eval/.
+#   Exit code 1 if any case fails: run it before switching models or prompts.
 ```
 
 ## Browse the library
@@ -227,8 +236,19 @@ pergamon mesh mock
 
 pergamon mesh listen
 #   Production: opens serial interface to a USB-attached Meshtastic node.
-#   Subscribes to DMs; replies with chunked RAG answers.
+#   Subscribes to DMs; replies with chunked answers. Each part waits for the
+#   receiver's ack (3 tries) before the next goes out. Reconnects if the USB
+#   link drops. Dedupes retransmits; max 2 pending questions per radio.
 #   Honors config/install.local.yaml → comms.meshtastic.allowed_node_ids.
+#
+#   What radio users can send:
+#     any question          → answer in numbered parts
+#     ping / help           → link test / command list (no model)
+#     /news [category]      → latest community-board posts
+#     /find <item>          → live classifieds
+#     /skills <skill>       → people offering a skill
+#     /msg <name|!id> text  → held by Pergamon, delivered when that radio is
+#                             next heard (build/mesh/mailbox.db, 7-day expiry)
 
 pergamon mesh info                   # attached radio, region, nodes it can hear
 pergamon mesh send <!nodeid> "text"  # one-off DM; ^all to broadcast
@@ -312,7 +332,10 @@ is set in `config/install.local.yaml` for a household network.
 | `config/install.local.yaml` | **Your** install picks | Yes (or via `pergamon setup`) |
 | `services/catalog.yaml` | Available services | No, committed |
 | `config/ledgers/*.yaml` | Ledger schemas | Yes — add new ledgers here |
-| `rag/config.yaml` | RAG defaults (chunk size, retrieval K, etc.) | Rarely |
+| `rag/config.yaml` | RAG defaults (chunk size, retrieval K, max_distance, vet_passages, think) | Rarely |
+| `config/domains/*.yaml` | Safety domains: keywords, banner, rules | Yes |
+| `config/domains/*_facts.yaml` | Curated facts injected for a domain (cite sources) | Yes, carefully |
+| `config/eval/questions.yaml` | Answer-quality checks for `pergamon eval` | Yes — add a case per bug |
 
 ## Environment variables worth knowing
 
