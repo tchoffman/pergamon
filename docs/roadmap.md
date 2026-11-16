@@ -31,3 +31,6 @@ Build order from the 2026-11-16 design review. Why each item exists is in
 #6 reverse proxy (likely home for #16), #8 full ZIM ingestion (see #23),
 #10 foraging shelf, #12 photo species ID (needs #16), #14 file transfer
 between pergamons.
+
+The first roadmap, with module ideas (shortwave, ham, Reticulum, APRS) and
+library reading lists, is kept in [roadmap-early.md](roadmap-early.md).
