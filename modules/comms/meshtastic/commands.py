@@ -17,7 +17,7 @@ from __future__ import annotations
 import time
 from typing import Callable
 
-HELP = ("Pergamon offline library. DM any question for an answer. Commands: "
+HELP = ("Pergamon: ask me anything. Commands: "
         "/news, /find <item>, /skills <skill>, /msg <name> <text>, ping.")
 MAX_ITEMS = 3
 SNIPPET = 90

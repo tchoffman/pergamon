@@ -161,3 +161,59 @@ cases:
     question: What's happening in the news today?
     must:
       - [no live, no internet, don't have, do not have, can't, cannot, not able, no access, unable]
+
+  # ── everyday, general use ─────────────────────────────────────────────
+  # Pergamon is a general assistant that happens to work offline. These
+  # check it answers normally and doesn't drift into survival/preparedness.
+  - id: birthday-message
+    question: Write a short, funny birthday message for my sister who loves cats.
+    must:
+      - [birthday]
+      - [cat, purr, meow, kitty, feline]
+    must_not: [survival, emergency, grid, stockpile, prepared]
+
+  - id: cookie-recipe
+    question: How do I make chocolate chip cookies?
+    must:
+      - [butter]
+      - [flour]
+      - [bake, oven]
+    must_not: [survival, emergency, grid, stockpile, ration]
+
+  - id: kid-gift
+    question: What's a good gift for a 6 year old who likes dinosaurs?
+    must:
+      - [dinosaur]
+    must_not: [survival, emergency, grid, stockpile, prepared]
+
+  - id: math
+    question: What is 15% of 240?
+    must:
+      - ["36"]
+
+  - id: photosynthesis
+    question: Explain photosynthesis simply.
+    must:
+      - [sunlight, light]
+      - [carbon dioxide, co2]
+    must_not: [survival, emergency, grid]
+
+  - id: lipstick
+    question: What lipstick shade goes with a red dress?
+    must:
+      - [red, nude, berry, neutral]
+    must_not: [survival, emergency, grid, stockpile]
+
+  - id: chess
+    question: How does castling work in chess?
+    must:
+      - [king]
+      - [rook]
+    must_not: [survival, emergency, grid]
+
+  - id: plan-party
+    question: Help me plan a backyard birthday party for ten kids.
+    must:
+      - [cake, food, snack]
+      - [game, activit]
+    must_not: [survival, emergency, grid, stockpile, prepared]

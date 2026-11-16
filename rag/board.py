@@ -1,6 +1,6 @@
 """Community board — local news, notices, events, lost & found.
 
-The grid-down replacement for a town bulletin board and a local forum.
+A town bulletin board and local forum that keeps working without the internet.
 Posts are plain Nostr kind-1 notes tagged ["t", "pergamon-board"] plus a
 category tag, so any standard Nostr client can read them too.
 
