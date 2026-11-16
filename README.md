@@ -83,7 +83,7 @@ password vault (Docker services).
 
 | Component | Tool |
 |---|---|
-| LLM + embeddings | [Ollama](https://ollama.com) — `llama3.1:8b` + `nomic-embed-text` by default (`make setup` to change) |
+| LLM + embeddings | [Ollama](https://ollama.com) — `qwen3.5:9b` + `nomic-embed-text` by default (`make setup` to change) |
 | Vector store | [Chroma](https://www.trychroma.com) |
 | Offline wikis | [Kiwix](https://kiwix.org) ZIM files |
 | Community data | [Nostr](https://nostr.com) events on a local relay — signed, so they can travel anywhere |

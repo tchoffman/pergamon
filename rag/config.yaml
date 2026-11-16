@@ -4,7 +4,7 @@
 ollama_host: http://localhost:11434
 
 # Models (should match names in rag/models.yaml).
-llm_model: llama3.1:8b-instruct-q4_K_M
+llm_model: qwen3.5:9b
 embedding_model: nomic-embed-text
 
 # Chroma persistent directory (inside build/ so it's gitignored).

@@ -56,7 +56,7 @@ make setup
 This walks you through:
 
 1. **Pick a preset**: minimal, default, comprehensive, or custom.
-2. **Model**: which LLM to use as the primary. Default is `llama3.1-8b-q4`
+2. **Model**: which LLM to use as the primary. Default is `qwen3.5-9b`
    (~5 GB, comfortable on a 16 GB Mac). On a bigger machine, pick `qwen2.5-14b-q4`
    for sharper answers.
 3. **Embedding model**: how retrieval works. The default (`nomic-embed-text`)

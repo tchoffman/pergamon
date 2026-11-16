@@ -2,8 +2,8 @@
 # Keys are informational; the list values are the Ollama tags that get pulled.
 
 primary:
-  # 8B Q4 — ~4.9GB, runs on 16GB RAM Mac. Primary synthesis model for RAG.
-  - llama3.1:8b-instruct-q4_K_M
+  # ~7.6GB, runs on a 16GB Mac. Primary model; picked by pergamon eval (Nov 2026).
+  - qwen3.5:9b
 
 embedding:
   # Text embeddings for Chroma. ~275MB, 768-dim.

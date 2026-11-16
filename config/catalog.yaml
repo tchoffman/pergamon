@@ -27,10 +27,24 @@ version: 1
 
 models:
   primary:
+    - id: qwen3.5-9b
+      ollama_tag: qwen3.5:9b
+      size_mb: 7600
+      notes: >-
+        Default. Best tested on a 16 GB Mac: 20/21 on pergamon eval, ~15s
+        radio answers. Run with think off (rag/config.yaml).
+    - id: gemma4-12b
+      ollama_tag: gemma4:12b
+      size_mb: 7700
+      notes: >-
+        Also 20/21 on pergamon eval, a bit slower than Qwen on 16 GB and
+        tight on memory there. Comfortable on 24 GB+.
     - id: llama3.1-8b-q4
       ollama_tag: llama3.1:8b-instruct-q4_K_M
       size_mb: 4900
-      notes: Default. Good balance on a 16 GB Mac.
+      notes: >-
+        Previous default (2024). Noticeably weaker: repeated outdated first aid
+        and couldn't tell off-topic library passages from relevant ones.
     - id: llama3.1-8b-q8
       ollama_tag: llama3.1:8b-instruct-q8_0
       size_mb: 8500
