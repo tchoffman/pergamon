@@ -203,6 +203,23 @@ def _already_seen(packet: dict) -> bool:
 
 
 _last_packet = [time.time()]
+_heard: set[str] = set()
+
+
+def _log_new_node(packet: dict, interface) -> None:
+    """First packet from a radio this session: log who and how strong."""
+    who = packet.get("fromId")
+    if not who or who in _heard:
+        return
+    _heard.add(who)
+    me = ((getattr(interface, "getMyUser", lambda: {})() or {}).get("id"))
+    if who == me:
+        return
+    hops = None
+    if packet.get("hopStart") is not None and packet.get("hopLimit") is not None:
+        hops = packet["hopStart"] - packet["hopLimit"]
+    console.print(f"[dim]heard {_node_name(interface, who)} {who}: snr {packet.get('rxSnr')} dB, "
+                  f"{'direct' if hops == 0 else f'{hops} hops' if hops is not None else 'hops ?'}[/dim]")
 
 
 def on_receive(packet: dict, interface) -> None:
@@ -213,6 +230,7 @@ def on_receive(packet: dict, interface) -> None:
     """
     _last_packet[0] = time.time()
     try:
+        _log_new_node(packet, interface)
         _on_receive(packet, interface)
     except Exception:
         import traceback
