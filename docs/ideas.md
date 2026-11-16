@@ -4,7 +4,7 @@ The running list of features we've discussed but not yet built. Organized by
 category; ★ marks the ones worth building soon; ⚡ flags the three foundational
 primitives most other features build on.
 
-See [roadmap.md](roadmap.md) for the three modules already scaffolded (comms,
+See [roadmap-early.md](roadmap-early.md) for the three modules already scaffolded (comms,
 services, compendium).
 
 ---
