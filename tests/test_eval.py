@@ -30,3 +30,9 @@ def test_negated_forbidden_phrase_is_fine():
 
 def test_max_chars():
     assert check({"max_chars": 10}, "x" * 11) == ["too long: 11 > 10 chars"]
+
+
+def test_negation_far_back_in_a_list_still_counts():
+    case = {"must_not": ["apply a tourniquet"]}
+    ans = "Do **not** cut the wound, suck out venom, use ice, apply a tourniquet, or give alcohol."
+    assert check(case, ans) == []

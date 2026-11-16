@@ -216,4 +216,5 @@ cases:
     must:
       - [cake, food, snack]
       - [game, activit]
-    must_not: [survival, emergency, grid, stockpile, prepared]
+    # "emergency contact" is fair for ten kids; check for survival framing instead
+    must_not: [survival, grid, stockpile, prepared, off-grid]

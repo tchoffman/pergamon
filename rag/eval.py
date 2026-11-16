@@ -50,11 +50,13 @@ def _affirmed(text: str, phrase: str) -> bool:
     """True if `phrase` appears without a negation shortly before it.
 
     "Do not suck out the venom" is the right advice; "suck out the venom" on
-    its own is the dangerous one. Looks back within the same sentence, ~40 chars.
+    its own is the dangerous one. Looks back to the start of the sentence (up to
+    150 chars), since lists like "Do not cut, suck, ice, or apply a tourniquet"
+    put the negation far from the last item.
     """
     start = 0
     while (i := text.find(phrase, start)) != -1:
-        before = re.split(r"[.!?\n]", text[max(0, i - 40):i])[-1]
+        before = re.split(r"[.!?\n]", text[max(0, i - 150):i])[-1]
         if not NEGATIONS.search(before):
             return True
         start = i + 1

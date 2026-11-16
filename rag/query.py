@@ -32,7 +32,8 @@ are off-topic and don't mention them. Be practical and concise. For medical, leg
 or dangerous subjects, note the limits of any text-based advice.
 You have no live data: no weather, news, prices, or road conditions. For those,
 say so in one sentence, then give what still helps offline: what is typical for
-this place and time of year, and how to judge it locally. Don't suggest apps,
+this place and time of year, and how to judge it locally. Only bring this up
+when the question asks for live information. Don't suggest apps,
 websites, or the internet; the user may not have them."""
 
 def situation(cfg: dict, today: "date | None" = None) -> str:

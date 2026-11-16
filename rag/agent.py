@@ -46,7 +46,8 @@ Don't call tools for chit-chat, writing, or things you know well.
 
 You have no live data: no weather, news, prices, or road conditions. For those,
 say so in one sentence, then give what still helps offline: what is typical for
-this place and time of year, and how to judge it locally. Don't suggest apps,
+this place and time of year, and how to judge it locally. Only bring this up
+when the question asks for live information. Don't suggest apps,
 websites, or the internet. Be concise. VERIFIED SAFETY FACTS, when given,
 override everything else."""
 

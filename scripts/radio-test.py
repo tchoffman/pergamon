@@ -87,6 +87,16 @@ def main() -> int:
     radio = BLEInterface(args.ble)
     print(f"connected: {radio.getMyUser().get('longName')}", flush=True)
 
+    # On macOS the radio's "new data" notification doesn't reach bleak, so the
+    # library never knows to read: messages pile up on the radio until the next
+    # connect. Nudge the reader every 2s (what the notification would do).
+    polling = threading.Event()
+
+    def poll() -> None:
+        while not polling.wait(2):
+            radio.should_read = True
+    threading.Thread(target=poll, daemon=True).start()
+
     cases = [c for c in CASES if not args.only or c[0] in args.only]
     failures = 0
     try:
@@ -104,6 +114,7 @@ def main() -> int:
             print(f"{'PASS' if passed else 'FAIL'}  {cid:12} {took:5.0f}s  {got}  {reply[:110]!r}", flush=True)
             time.sleep(3)  # let the listener settle between questions
     finally:
+        polling.set()
         radio.close()
     print(f"{len(cases) - failures}/{len(cases)} passed")
     return 1 if failures else 0
