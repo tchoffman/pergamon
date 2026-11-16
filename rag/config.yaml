@@ -18,6 +18,10 @@ chunk_overlap: 150        # character overlap between adjacent chunks
 # Retrieval parameters for `pergamon ask`.
 retrieve_k: 6             # top-K chunks to pull from Chroma
 max_context_chars: 8000   # cap context fed to the LLM to stay within window
+# Library passages farther than this (Chroma L2 distance, lower = closer) are not
+# shown to the LLM when answering. On-topic matches score ~150-300; unrelated
+# ones ~450. Raise it to lean on the library more, lower it to lean on it less.
+max_distance: 350
 
 # Generation parameters.
 temperature: 0.2          # low → factual; raise for more exploratory answers

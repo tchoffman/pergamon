@@ -4,13 +4,14 @@ Keeps the mesh-facing code identical in mock and real modes.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 import ollama
 
 from rag.config import load_config
 from rag.domains import frame_question, guard
-from rag.query import SYSTEM_PROMPT, _format_source, build_context, retrieve
+from rag.query import CONTEXT_HEADER, SYSTEM_PROMPT, _format_source, build_context, relevant_hits
 
 # Meshtastic messages cap around 240 bytes of payload. Leave headroom for
 # UTF-8 multi-byte chars and our "[p/N] " prefix.
@@ -56,11 +57,11 @@ def ask(question: str, max_tokens_hint: int = 150) -> MeshReply:
     prompt gets an extra hint to stay terse.
     """
     cfg = load_config()
-    hits = retrieve(cfg, question)
+    hits = relevant_hits(cfg, question)
 
     if hits:
         context, sources = build_context(hits, cfg["max_context_chars"])
-        user_prompt = f"CONTEXT:\n{context}\n\nQUESTION: {frame_question(question, guard(question, '')[1])}"
+        user_prompt = f"{CONTEXT_HEADER}\n{context}\n\nQUESTION: {frame_question(question, guard(question, '')[1])}"
     else:
         sources = []
         user_prompt = f"QUESTION: {frame_question(question, guard(question, '')[1])}"
@@ -78,7 +79,8 @@ def ask(question: str, max_tokens_hint: int = 150) -> MeshReply:
         ],
         options={"temperature": cfg["temperature"], "num_ctx": cfg["num_ctx"]},
     )
-    answer = resp["message"]["content"].strip()
+    # Inline [n] markers mean nothing on a radio screen; the top source is appended below.
+    answer = re.sub(r"\s*\[\d+(?:,\s*\d+)*\]", "", resp["message"]["content"]).strip()
 
     # Trim to just the top source for brevity; include only the article title.
     short_sources: list[str] = []

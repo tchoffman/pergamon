@@ -13,7 +13,7 @@ from rich.rule import Rule
 
 from rag.config import load_config
 from rag.domains import guard
-from rag.query import build_context, retrieve
+from rag.query import CONTEXT_HEADER, build_context, relevant_hits
 
 console = Console()
 
@@ -40,7 +40,8 @@ Structure the plan EXACTLY like this (markdown):
 - how you'll know it worked
 
 Rules:
-- Use CONTEXT where relevant and cite sources inline like [1], [2].
+- Plan from your own knowledge. Use LIBRARY EXCERPTS, when given, to check
+  facts and add specifics, citing them inline like [1], [2].
 - Be concrete: numbers, specific gear, specific steps. No hedging.
 - Off-grid / wilderness / survival planning assumes limited internet,
   limited tools, and the user handling things alone or in a small group.
@@ -50,16 +51,14 @@ Rules:
 
 def make_plan(goal: str, stream: bool = True) -> int:
     cfg = load_config()
-    hits = retrieve(cfg, goal)
+    hits = relevant_hits(cfg, goal)
 
     if hits:
         context, sources = build_context(hits, cfg["max_context_chars"])
-        user_prompt = f"CONTEXT:\n{context}\n\nGOAL: {goal}"
+        user_prompt = f"{CONTEXT_HEADER}\n{context}\n\nGOAL: {goal}"
     else:
         context, sources = "", []
-        user_prompt = (
-            f"(No corpus indexed yet — planning from general knowledge alone.)\n\nGOAL: {goal}"
-        )
+        user_prompt = f"GOAL: {goal}"
 
     system, domains = guard(goal, PLAN_SYSTEM_PROMPT)
     client = ollama.Client(host=cfg["ollama_host"])

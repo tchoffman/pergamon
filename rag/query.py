@@ -15,11 +15,16 @@ from rag.domains import frame_question, guard
 console = Console()
 
 
-SYSTEM_PROMPT = """You are Pergamon, an offline library assistant for someone operating
-off-grid without internet. Answer practically and concisely using ONLY the provided
-CONTEXT when possible. If context doesn't cover the question, say so and offer your
-best general knowledge, flagging it as such. For medical, legal, or dangerous subjects,
-remind the user of the obvious limits of any text-based reference."""
+SYSTEM_PROMPT = """You are Pergamon, an offline assistant for someone without internet.
+Answer directly from your own knowledge; you do not need the library to answer.
+When LIBRARY EXCERPTS are provided, use them to check your answer and to add
+specific details (amounts, steps, names), citing them like [1]. With no excerpts,
+cite nothing. If an excerpt
+contradicts what you believe, go with the excerpt and say so. Ignore excerpts that
+are off-topic and don't mention them. Be practical and concise. For medical, legal,
+or dangerous subjects, note the limits of any text-based advice."""
+
+CONTEXT_HEADER = "LIBRARY EXCERPTS (use to check and add detail; ignore any that are off-topic):"
 
 
 def retrieve(cfg: dict, question: str) -> list[dict]:
@@ -34,6 +39,17 @@ def retrieve(cfg: dict, question: str) -> list[dict]:
     metas = res["metadatas"][0]
     dists = res["distances"][0]
     return [{"text": d, "meta": m, "dist": dist} for d, m, dist in zip(docs, metas, dists)]
+
+
+def relevant_hits(cfg: dict, question: str) -> list[dict]:
+    """Retrieved passages close enough to the question to be worth showing the LLM.
+
+    Unrelated passages invite the model to bend its answer toward them, so the
+    answer paths drop anything past `max_distance`. Search shows everything.
+    """
+    limit = cfg.get("max_distance")
+    hits = retrieve(cfg, question)
+    return hits if limit is None else [h for h in hits if h["dist"] <= limit]
 
 
 def _format_source(meta: dict, kiwix_port: int = 8080) -> str:
@@ -68,18 +84,16 @@ def build_context(hits: list[dict], cap: int) -> tuple[str, list[str]]:
 
 def ask(question: str) -> int:
     cfg = load_config()
-    hits = retrieve(cfg, question)
+    hits = relevant_hits(cfg, question)
 
     system, domains = guard(question, SYSTEM_PROMPT)
     framed = frame_question(question, domains)
     if hits:
         context, sources = build_context(hits, cfg["max_context_chars"])
-        user_prompt = f"CONTEXT:\n{context}\n\nQUESTION: {framed}"
+        user_prompt = f"{CONTEXT_HEADER}\n{context}\n\nQUESTION: {framed}"
     else:
         context, sources = "", []
-        user_prompt = (
-            f"(No corpus indexed yet — answering from general knowledge.)\n\nQUESTION: {framed}"
-        )
+        user_prompt = f"QUESTION: {framed}"
 
     client_ollama = ollama.Client(host=cfg["ollama_host"])
     stream = client_ollama.chat(

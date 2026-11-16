@@ -39,7 +39,8 @@ from rag.nostr import (
     sign_event,
 )
 from rag.plan import PLAN_SYSTEM_PROMPT
-from rag.query import SYSTEM_PROMPT, _format_source, build_context, retrieve
+from rag.query import (CONTEXT_HEADER, SYSTEM_PROMPT, _format_source, build_context,
+                       relevant_hits, retrieve)
 
 TEMPLATES_DIR = REPO_ROOT / "rag" / "templates"
 STATIC_DIR = REPO_ROOT / "rag" / "static"
@@ -107,7 +108,7 @@ def _stream_rag(q: str, system: str, user_prefix: str, use_domain_guards: bool =
     """Shared SSE generator for ask / plan. `user_prefix` labels the user slot
     (QUESTION or GOAL) so the LLM reads the prompt correctly."""
     cfg = load_config()
-    hits = retrieve(cfg, q)
+    hits = relevant_hits(cfg, q)
 
     guarded_system, domains = guard(q, system) if use_domain_guards else (system, [])
     framed = frame_question(q, domains)
@@ -120,9 +121,9 @@ def _stream_rag(q: str, system: str, user_prefix: str, use_domain_guards: bool =
                 label = _format_source(h["meta"])
                 yield {"event": "source", "data": f"[{i}] {label}"}
             context, _ = build_context(hits, cfg["max_context_chars"])
-            user_prompt = f"CONTEXT:\n{context}\n\n{user_prefix}: {framed}"
+            user_prompt = f"{CONTEXT_HEADER}\n{context}\n\n{user_prefix}: {framed}"
         else:
-            yield {"event": "source", "data": "(no corpus — answering from general knowledge)"}
+            yield {"event": "source", "data": "(no matching library passages — answered from the model's own knowledge)"}
             user_prompt = f"{user_prefix}: {framed}"
 
         client_ollama = ollama.Client(host=cfg["ollama_host"])
@@ -904,8 +905,8 @@ COOK_PROMPT = """You are Pergamon's kitchen helper. The user lists what's in the
 with items that expire soonest first. Suggest 3 practical meals they can make mostly from
 these ingredients, preferring the items marked USE SOON. For each: name, ingredients from
 the list (and any common staples assumed), and short steps. Flag any food-safety concern
-(e.g. items past their date, home-canned goods with bulging lids). Use CONTEXT recipes if
-relevant and cite them. Be concise."""
+(e.g. items past their date, home-canned goods with bulging lids). Use recipes from LIBRARY
+EXCERPTS if relevant and cite them. Be concise."""
 
 
 def _food_allowed(request: Request) -> None:
