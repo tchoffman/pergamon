@@ -259,6 +259,11 @@ def _on_receive(packet: dict, interface) -> None:
     to_id = packet.get("toId") or str(packet.get("to"))
     is_dm = to_id and to_id != "^all"
     if not is_dm:
+        # Public channel: log it so the host can follow the conversation, but
+        # never answer (replying to broadcasts would flood the mesh).
+        if text:
+            console.print(f"[cyan][channel {channel}] {_node_name(interface, sender)} "
+                          f"({sender}): {text}[/cyan]")
         return
 
     allowed = _load_allowed_nodes()

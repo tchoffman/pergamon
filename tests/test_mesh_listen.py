@@ -126,3 +126,13 @@ def test_every_packet_updates_last_heard(monkeypatch):
     listen._last_packet[0] = 0
     listen.on_receive({"fromId": "!x", "decoded": {"portnum": "TELEMETRY_APP"}}, RecordingIface())
     assert listen._last_packet[0] > 0
+
+
+def test_public_channel_is_logged_not_answered(monkeypatch, capsys):
+    _reset(monkeypatch)
+    iface = RecordingIface()
+    pkt = {"decoded": {"portnum": "TEXT_MESSAGE_APP", "text": "hello mesh"},
+           "fromId": "!c", "from": 3, "toId": "^all", "id": 99}
+    listen.on_receive(pkt, iface)
+    assert listen._jobs.empty() and iface.sent == []
+    assert "hello mesh" in capsys.readouterr().out
