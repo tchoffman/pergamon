@@ -104,7 +104,7 @@ def _prompt_item_options(item: dict, current: dict | None) -> dict:
         elif opt.get("type") == "string":
             placeholder = opt.get("placeholder", "")
             answer = questionary.text(prompt, default=(",".join(default) if isinstance(default, list) else (default or ""))).ask()
-            if "," in prompt or opt.get("multi"):
+            if isinstance(item.get("defaults", {}).get(name), list) or opt.get("multi"):
                 out[name] = [x.strip() for x in (answer or "").split(",") if x.strip()]
             else:
                 out[name] = answer

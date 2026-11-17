@@ -85,7 +85,14 @@ for item_id, opts in enable.items():
         regions = merged_opts.get("regions") or []
         if not regions:
             continue
-        env_pairs = [f"OSM_REGIONS={','.join(regions)}"]
+        layers = merged_opts.get("layers") or ["streets"]
+        env_pairs = [f"OSM_REGIONS={','.join(regions)}", f"OSM_LAYERS={','.join(layers)}"]
+    elif fetcher == "usgs-topo":
+        area = (merged_opts.get("area") or "").strip()
+        if not area:
+            continue
+        env_pairs = [f"TOPO_AREA={area}", f"TOPO_RADIUS={merged_opts.get('radius_mi', 10)}",
+                     f"TOPO_EDITIONS={','.join(merged_opts.get('editions') or ['current'])}"]
     else:
         print(f"# WARN unknown fetcher '{fetcher}' for {item_id}", file=sys.stderr)
         continue

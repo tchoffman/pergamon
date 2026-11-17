@@ -482,6 +482,47 @@ items:
       default: 12
 
   # ── Maps ────────────────────────────────────────────────────────────
+  - id: usgs-topo
+    title: USGS topographic maps (US only)
+    shelf: maps
+    fetcher: usgs-topo
+    description: >-
+      Printable topo maps around a place: contour lines, streams, springs,
+      ponds, lakes, wetlands, woodland and trails. The historical edition
+      (often 1900s-1950s) also shows old homesteads, orchards, mills and
+      mines. GeoPDFs: any PDF viewer, or Avenza Maps / QGIS with GPS.
+    options:
+      - name: area
+        prompt: "Around which place? (a town, or lat,lon)"
+        type: string
+        placeholder: "Asheville, NC"
+      - name: radius_mi
+        prompt: "How many miles around it?"
+        choices:
+          - value: 5
+            label: "5 miles: ~6 maps (~350 MB current, ~100 MB historical)"
+          - value: 10
+            label: "10 miles: ~12 maps (~700 MB current, ~200 MB historical)"
+          - value: 25
+            label: "25 miles: ~50 maps (~3 GB current, ~1 GB historical)"
+      - name: editions
+        prompt: "Which editions?"
+        multi: true
+        choices:
+          - value: current
+            label: "Current US Topo (~55 MB per map)"
+          - value: historical
+            label: "Oldest detailed historical edition (~15 MB per map)"
+    defaults:
+      area: ""
+      radius_mi: 10
+      editions: [current, historical]
+    size_mb_by_option:
+      radius_mi:
+        5: 450
+        10: 900
+        25: 4000
+
   - id: osm-regional
     title: OpenStreetMap regional packs (OsmAnd format)
     shelf: maps
@@ -492,6 +533,23 @@ items:
         prompt: "Which regions? (comma-separated OsmAnd region codes)"
         type: string
         placeholder: "us-georgia,us-north-carolina,germany-berlin"
+      - name: layers
+        prompt: "Which map layers?"
+        multi: true
+        choices:
+          - value: streets
+            label: "Street map: roads, trails, water, woods, places (~470 MB/US state)"
+          - value: contours-feet
+            label: "Contour lines in feet (~55 MB/US state)"
+          - value: contours-meters
+            label: "Contour lines in meters (~65 MB/US state)"
+          - value: hillshade
+            label: "Hillshade: shaded relief, hills at a glance (~75 MB/US state)"
+          - value: slope
+            label: "Slope steepness shading (~160 MB/US state)"
+          - value: wikipedia
+            label: "Wikipedia articles as map points (~70 MB/US state)"
     defaults:
       regions: []
+      layers: [streets]
     # Size varies; typically 300-800 MB per US state

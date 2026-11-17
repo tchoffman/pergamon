@@ -44,6 +44,7 @@ looks_right() {
     *.pdf)  [[ "$head" == 25504446* ]] ;;
     *.7z)   [[ "$head" == 377abcaf271c* ]] ;;
     *.zip)  [[ "$head" == 504b0304* ]] ;;
+    *.sqlitedb) [[ "$head" == 53514c6974652066* ]] ;;  # "SQLite f"
     *)      ! head -c 2048 "$f" | grep -qi '<html' ;;
   esac
 }

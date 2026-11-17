@@ -131,3 +131,73 @@ def test_map_files_reads_only_map_entries():
     xml = ('<region type="map" size="1" name="Us_georgia_northamerica_2.obf.zip"/>'
            '<region type="voice" name="en_0.voice.zip"/>')
     assert osm_regions.map_files(xml) == ["Us_georgia_northamerica_2.obf.zip"]
+
+
+def test_layers_map_to_osmand_files_and_download_links():
+    entries = {"Us_georgia_northamerica_2.obf.zip": "map",
+               "Us_georgia_northamerica_2.srtmf.obf.zip": "srtm_map",
+               "Hillshade_Us_georgia_northamerica.sqlitedb": "hillshade"}
+    found, missing = osm_regions.layer_files(
+        "Us_georgia_northamerica_2.obf.zip", ["streets", "contours-feet", "hillshade", "slope"], entries)
+    assert [(f, l) for _, f, l in found] == [
+        ("Us_georgia_northamerica_2.obf.zip", "streets"),
+        ("Us_georgia_northamerica_2.srtmf.obf.zip", "contours-feet"),
+        ("Hillshade_Us_georgia_northamerica.sqlitedb", "hillshade")]
+    assert found[1][0].endswith("?srtmcountry=yes&file=Us_georgia_northamerica_2.srtmf.obf.zip")
+    assert found[2][0].endswith("?hillshade=yes&file=Hillshade_Us_georgia_northamerica.sqlitedb")
+    assert missing == ["slope"]
+
+
+def test_index_entries_reads_every_layer_type():
+    xml = ('<region type="map" name="A_2.obf.zip"/><srtmfeetcountry type="srtm_map" name="A_2.srtmf.obf.zip"/>'
+           '<hillshade type="hillshade" name="Hillshade_A.sqlitedb"/>')
+    assert osm_regions.index_entries(xml) == {"A_2.obf.zip": "map", "A_2.srtmf.obf.zip": "srtm_map",
+                                              "Hillshade_A.sqlitedb": "hillshade"}
+
+
+# ── USGS topo maps ──
+
+from rag import usgs_topo  # noqa: E402
+
+
+def _item(title, url, date):
+    return {"title": title, "downloadURL": url, "publicationDate": date}
+
+
+def test_current_topo_keeps_the_newest_map_per_quad():
+    items = [_item("US Topo 7.5-minute map for Enka, NC", "a/NC_Enka_2019.pdf", "2019-05-01"),
+             _item("US Topo 7.5-minute map for Enka, NC", "a/NC_Enka_2022.pdf", "2022-09-21"),
+             _item("US Topo 7.5-minute map for Oteen, NC", "a/NC_Oteen_2022.pdf", "2022-09-21"),
+             _item("US Topo 7.5-minute map for Oteen, NC", "a/x.zip", "2023-01-01")]
+    assert [i["downloadURL"] for i in usgs_topo.pick_current(items)] == ["a/NC_Enka_2022.pdf", "a/NC_Oteen_2022.pdf"]
+
+
+def test_historical_topo_keeps_the_oldest_most_detailed_edition():
+    t = "USGS 1:{s}-scale Quadrangle for Asheville, NC {y}"
+    items = [_item(t.format(s=125000, y=1894), "h/1894.pdf", "1894-01-01"),
+             _item(t.format(s=24000, y=1961), "h/1961.pdf", "1961-01-01"),
+             _item(t.format(s=24000, y=1936), "h/1936.pdf", "1936-01-01"),
+             _item("USGS 1:250000-scale Quadrangle for Knoxville, TN 1955", "h/k.pdf", "1955-01-01"),
+             _item("USGS 1:62500-scale Quadrangle for Mars Hill, NC 1907", "h/m.pdf", "1907-01-01")]
+    picked = [i["downloadURL"] for i in usgs_topo.pick_historical(items)]
+    assert picked == ["h/1936.pdf", "h/m.pdf"]  # 1:250,000 alone is too coarse to keep
+
+
+def test_topo_plan_pages_through_results_and_names_files():
+    pages = [{"total": 3, "items": [_item("US Topo 7.5-minute map for A, NC", "u/NC_A%20B_1.pdf", "2022-01-01"),
+                                    _item("US Topo 7.5-minute map for C, NC", "u/C.pdf", "2022-01-01")]},
+             {"total": 3, "items": [_item("US Topo 7.5-minute map for D, NC", "u/D.pdf", "2022-01-01")]}]
+    calls = []
+
+    def fetch(url):
+        calls.append(url)
+        return pages[len(calls) - 1]
+    rows = usgs_topo.plan("x", 5, ["current"], fetch=fetch, geocode=lambda a: (35.6, -82.55))
+    assert [r[1] for r in rows] == ["NC_A_B_1.pdf", "C.pdf", "D.pdf"]
+    assert "offset=2" in calls[1] and "US+Topo" in calls[0]
+
+
+def test_topo_area_accepts_lat_lon_and_box_is_about_right():
+    assert usgs_topo.locate(" 35.6, -82.55 ") == (35.6, -82.55)
+    w, s, e, n = usgs_topo.bbox(35.6, -82.55, 10)
+    assert round(n - s, 2) == round(20 / 69, 2) and e - w > n - s  # longitude degrees are shorter
