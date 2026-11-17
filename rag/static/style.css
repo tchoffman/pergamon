@@ -334,3 +334,18 @@ body:not(:has(.app-name)) .home-link::before { content: none; }
 .app:hover .app-icon { outline: 2px solid var(--accent); }
 .app-label { font-size: 0.85rem; text-align: center; }
 footer { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+
+/* Every text-like field looks the same (password and untyped inputs too) */
+input:not([type]), input[type="password"], input[type="search"], input[type="number"],
+input[type="date"], input[type="email"] {
+  padding: 0.6rem 0.8rem;
+  font-size: 1rem;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  min-width: 0;
+}
+input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+form > .row { flex-basis: 100%; }
+.row input, .row textarea { width: 100%; }

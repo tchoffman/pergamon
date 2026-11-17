@@ -1,67 +1,176 @@
 <section id="deviceKey">
-  <h2>This device's key</h2>
+  <h2>Your account</h2>
+
   <div id="dk_none" class="hidden">
-    <p class="muted">To post from this phone or computer as yourself, create a key. It's stored only
-      in this browser and signs your posts here — the hub never sees it.</p>
-    <form id="dk_create">
-      <div class="row"><label for="dk_name">Your name (shown to neighbors)</label>
-        <input id="dk_name" placeholder="Rosa, Main St" /></div>
-      <button type="submit">Create my key</button>
+    <form id="ac_signin">
+      <div class="row"><label for="ac_in_user">Username</label>
+        <input id="ac_in_user" autocomplete="username" autocapitalize="off" spellcheck="false" /></div>
+      <div class="row"><label for="ac_in_pass">Password</label>
+        <input id="ac_in_pass" type="password" autocomplete="current-password" /></div>
+      <button type="submit">Sign in</button>
     </form>
-    <details style="margin-top:0.75rem">
-      <summary class="muted">I already have a key (restore from backup)</summary>
-      <form id="dk_import" style="margin-top:0.5rem">
-        <div class="row"><label for="dk_nsec">Backup key (starts with nsec1)</label>
+
+    <details id="ac_new_box">
+      <summary><strong>New here? Create an account</strong></summary>
+      <form id="ac_signup" style="margin-top:0.5rem">
+        <div class="row"><label for="ac_up_name">Your name (shown to neighbors)</label>
+          <input id="ac_up_name" placeholder="Rosa, Main St" /></div>
+        <div class="row"><label for="ac_up_user">Username</label>
+          <input id="ac_up_user" autocomplete="username" autocapitalize="off" spellcheck="false"
+            placeholder="rosa" /></div>
+        <div class="row"><label for="ac_up_pass">Password</label>
+          <input id="ac_up_pass" type="password" autocomplete="new-password" /></div>
+        <div class="row"><label for="ac_up_pass2">Password again</label>
+          <input id="ac_up_pass2" type="password" autocomplete="new-password" /></div>
+        <label class="small"><input type="checkbox" id="ac_up_local" /> Keep my key only on this
+          phone. The hub won't store it, so signing in elsewhere needs your key file.</label>
+        <div style="margin-top:0.5rem"><button type="submit">Create account</button></div>
+      </form>
+    </details>
+
+    <details>
+      <summary class="muted">Other ways in</summary>
+      <form id="ac_file" style="margin-top:0.5rem">
+        <div class="row"><label for="ac_file_text">Key file from another hub (starts with ncryptsec1)</label>
+          <textarea id="ac_file_text" rows="3" autocapitalize="off" spellcheck="false"></textarea></div>
+        <div class="row"><label for="ac_file_pass">Its password</label>
+          <input id="ac_file_pass" type="password" autocomplete="current-password" /></div>
+        <button type="submit">Use key file</button>
+      </form>
+      <form id="dk_import" style="margin-top:1rem">
+        <div class="row"><label for="dk_nsec">Backup code (starts with nsec1)</label>
           <input id="dk_nsec" autocomplete="off" autocapitalize="off" spellcheck="false" /></div>
         <button type="submit">Restore</button>
       </form>
+      <form id="dk_create" style="margin-top:1rem">
+        <p class="muted small">Or skip the account: a key just for this browser.</p>
+        <div class="row"><label for="dk_name">Your name (shown to neighbors)</label>
+          <input id="dk_name" placeholder="Rosa, Main St" /></div>
+        <button type="submit">Use this device only</button>
+      </form>
     </details>
   </div>
+
   <div id="dk_have" class="hidden">
     <div class="active-card">
-      <div><strong id="dk_shown_name"></strong></div>
+      <div><strong id="dk_shown_name"></strong> <span id="dk_user" class="muted"></span></div>
       <div class="muted mono" id="dk_npub"></div>
     </div>
-    <p class="warn small">Save your backup key somewhere safe (write it down or photograph it).
-      If this browser's data is cleared, the key is gone and so is your trade history.</p>
+
+    <form id="ac_claim" class="hidden">
+      <p class="small">This key lives only in this browser. Add a username and password so you can
+        sign in from another phone, or if this browser is cleared.</p>
+      <div class="row"><label for="ac_cl_user">Username</label>
+        <input id="ac_cl_user" autocomplete="username" autocapitalize="off" spellcheck="false" /></div>
+      <div class="row"><label for="ac_cl_pass">Password</label>
+        <input id="ac_cl_pass" type="password" autocomplete="new-password" /></div>
+      <button type="submit">Create account</button>
+    </form>
+
     <div class="actions">
-      <button class="small-btn" id="dk_backup">Show backup key</button>
-      <button class="small-btn secondary" id="dk_forget">Remove from this device</button>
+      <button class="small-btn" id="ac_download" type="button">Download key file</button>
+      <button class="small-btn secondary" id="dk_forget" type="button">Sign out of this device</button>
     </div>
-    <div id="dk_nsec_shown" class="mono small hidden" style="margin-top:0.5rem"></div>
+    <details style="margin-top:0.5rem">
+      <summary class="muted small">Backup code</summary>
+      <p class="warn small">Anyone with this code is you. Keep it private.</p>
+      <button class="small-btn" id="dk_backup" type="button">Show backup code</button>
+      <div id="dk_nsec_shown" class="mono small hidden" style="margin-top:0.5rem"></div>
+    </details>
   </div>
-  <div id="dk_msg" class="muted small"></div>
+
+  <div id="dk_msg" class="muted small" role="status"></div>
+  <p class="muted small">Your password never leaves this device: the hub stores your key locked
+    with it. But whoever runs this hub controls this page, so a dishonest host could capture your
+    password and unlock your key. Use a password you don't use anywhere else.</p>
 </section>
 <script>
 (function () {
-  const K = Pergamon.Keys;
+  const K = Pergamon.Keys, A = Pergamon.Account;
   const $ = (id) => document.getElementById(id);
+  const say = (t) => { $("dk_msg").textContent = t; };
   function render() {
     const k = K.get();
     $("dk_none").classList.toggle("hidden", !!k);
     $("dk_have").classList.toggle("hidden", !k);
     if (k) {
       $("dk_shown_name").textContent = k.name || "(no name)";
+      $("dk_user").textContent = k.username ? "@" + k.username : "";
       $("dk_npub").textContent = K.npub();
+      $("ac_claim").classList.toggle("hidden", !!k.username);
     }
     document.dispatchEvent(new CustomEvent("pergamon-key-changed"));
+  }
+  async function busy(label, fn) {
+    say(label);
+    // Let the message paint: locking a key takes about a second on a phone.
+    await new Promise((r) => setTimeout(r, 30));
+    try { await fn(); } catch (e) { say(e.message); return false; }
+    return true;
   }
   async function publishName(name) {
     if (!name) return;
     try { await Pergamon.signAndPublish("/api/draft/profile", { display_name: name }); }
-    catch (e) { $("dk_msg").textContent = "Key saved, but the name wasn't shared yet: " + e.message; }
+    catch (e) { say("Signed in, but your name wasn't shared yet: " + e.message); }
   }
+  $("ac_signin").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (await busy("Signing in…", () => A.signIn($("ac_in_user").value.trim(), $("ac_in_pass").value))) {
+      say(""); render();
+    }
+  });
+  $("ac_signup").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if ($("ac_up_pass").value !== $("ac_up_pass2").value) return say("The passwords don't match.");
+    if ($("ac_up_pass").value.length < 8) return say("Use at least 8 characters for the password.");
+    const name = $("ac_up_name").value.trim();
+    const hadKey = K.has();
+    const ok = await busy("Creating your account…", () =>
+      A.signUp($("ac_up_user").value.trim(), $("ac_up_pass").value, name, !$("ac_up_local").checked));
+    if (!ok) { if (!hadKey) K.forget(); return; }
+    say("Account created."); render(); await publishName(name);
+  });
+  $("ac_claim").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if ($("ac_cl_pass").value.length < 8) return say("Use at least 8 characters for the password.");
+    const k = K.get();
+    if (await busy("Creating your account…", () =>
+        A.signUp($("ac_cl_user").value.trim(), $("ac_cl_pass").value, k.name, true))) {
+      say("Account created. You can now sign in from other phones."); render();
+    }
+  });
+  $("ac_file").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (await busy("Unlocking…", () => A.useKeyFile($("ac_file_text").value, $("ac_file_pass").value, ""))) {
+      say("Key unlocked on this device."); render();
+    }
+  });
   $("dk_create").addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = $("dk_name").value.trim();
-    K.create(name);
-    render();
-    await publishName(name);
+    K.create(name); render(); await publishName(name);
   });
   $("dk_import").addEventListener("submit", (e) => {
     e.preventDefault();
-    try { K.importNsec($("dk_nsec").value, ""); $("dk_msg").textContent = "Key restored."; render(); }
-    catch (err) { $("dk_msg").textContent = err.message; }
+    try { K.importNsec($("dk_nsec").value, ""); say("Key restored."); render(); }
+    catch (err) { say(err.message); }
+  });
+  $("ac_download").addEventListener("click", async () => {
+    let file;
+    try { file = A.keyFile(); }
+    catch (e) {
+      const pw = prompt("Choose a password to lock your key file with (8+ characters):");
+      if (!pw || pw.length < 8) return say("Key file not made: the password needs 8+ characters.");
+      if (!(await busy("Locking your key…", () => { file = A.keyFile(pw); }))) return;
+    }
+    const k = K.get();
+    const text = file + "\n\nPergamon key file for " + (k.name || "") + (k.username ? " (@" + k.username + ")" : "") +
+      ". It is locked with your password. To use it on another hub: Me → Other ways in → Key file.\n";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+    a.download = "pergamon-" + (k.username || "key") + ".txt";
+    document.body.appendChild(a); a.click(); a.remove();
+    say("Key file downloaded. Keep it somewhere safe; it only opens with your password.");
   });
   $("dk_backup").addEventListener("click", () => {
     const box = $("dk_nsec_shown");
@@ -69,9 +178,11 @@
     box.classList.toggle("hidden");
   });
   $("dk_forget").addEventListener("click", () => {
-    if (confirm("Remove this key from this device? Without your backup it cannot be recovered.")) {
-      K.forget(); render();
-    }
+    const k = K.get();
+    const warn = k && k.username && k.keyOnHub
+      ? "Sign out of this device? You can sign in again with your username and password."
+      : "Sign out? This key isn't stored on the hub: without your key file or backup code it's gone.";
+    if (confirm(warn)) { A.signOut(); say(""); render(); }
   });
   render();
 })();

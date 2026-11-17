@@ -3,6 +3,7 @@
 const puppeteer = require("puppeteer-core");
 const BASE = process.env.PERGAMON_URL || "http://127.0.0.1:8096";
 const results = [];
+const PASSWORD = "pea soup 42";
 const check = (name, ok, extra = "") => { results.push({ name, ok }); console.log((ok ? "PASS " : "FAIL ") + name + (extra ? "  " + extra : "")); };
 
 async function person(browser, name) {
@@ -12,11 +13,16 @@ async function person(browser, name) {
   page.on("pageerror", (e) => console.log(`  [${name} pageerror] ${e.message}`));
   page.on("dialog", (d) => d.accept());
   await page.goto(BASE + "/welcome", { waitUntil: "networkidle0" });
-  await page.type("#dk_name", name);
-  await page.click("#dk_create button");
-  await page.waitForFunction(() => !document.getElementById("dk_have").classList.contains("hidden"));
+  await page.evaluate(() => { document.getElementById("ac_new_box").open = true; });
+  await page.type("#ac_up_name", name);
+  await page.type("#ac_up_user", name.toLowerCase());
+  await page.type("#ac_up_pass", PASSWORD);
+  await page.type("#ac_up_pass2", PASSWORD);
+  await page.click("#ac_signup button");
+  await page.waitForFunction(() => !document.getElementById("dk_have").classList.contains("hidden"), { timeout: 20000 });
   const npub = await page.$eval("#dk_npub", (n) => n.textContent);
-  check(`${name}: key created on welcome page`, npub.startsWith("npub1"), npub.slice(0, 16));
+  const user = await page.$eval("#dk_user", (n) => n.textContent);
+  check(`${name}: account created on welcome page`, npub.startsWith("npub1") && user === "@" + name.toLowerCase(), npub.slice(0, 16));
   return { page, npub };
 }
 
@@ -31,6 +37,7 @@ async function person(browser, name) {
     const p = rosa.page;
 
     // Backup key reveal
+    await p.evaluate(() => { document.getElementById("dk_backup").closest("details").open = true; });
     await p.click("#dk_backup");
     const nsec = await p.$eval("#dk_nsec_shown", (n) => n.textContent);
     check("backup key shown as nsec", nsec.startsWith("nsec1"));
@@ -154,6 +161,26 @@ async function person(browser, name) {
     check("service worker active (installable)", sw);
     const cached = await p.evaluate(async () => !!(await caches.match("/offline")));
     check("offline page cached for when the hub is out of reach", cached);
+
+    // Sign in as Rosa on a second phone with just username + password
+    const ctx2 = await browser.createBrowserContext();
+    const p2 = await ctx2.newPage();
+    p2.on("dialog", (d) => d.accept());
+    await p2.goto(BASE + "/identity", { waitUntil: "networkidle0" });
+    await p2.type("#ac_in_user", "rosa");
+    await p2.type("#ac_in_pass", "wrong password");
+    await p2.click("#ac_signin button");
+    await p2.waitForFunction(() => document.getElementById("dk_msg").textContent.includes("Wrong"), { timeout: 20000 });
+    check("wrong password refused", true);
+    await p2.$eval("#ac_in_pass", (n) => { n.value = ""; });
+    await p2.type("#ac_in_pass", PASSWORD);
+    await p2.click("#ac_signin button");
+    await p2.waitForFunction(() => !document.getElementById("dk_have").classList.contains("hidden"), { timeout: 20000 });
+    const npub2 = await p2.$eval("#dk_npub", (n) => n.textContent);
+    check("signing in on a second phone gives the same identity", npub2 === rosa.npub);
+    await p2.goto(BASE + "/board", { waitUntil: "networkidle0" });
+    const who2 = await p2.$eval("#whoami", (n) => n.textContent);
+    check("second phone can post as Rosa", who2.includes("Rosa"), who2);
 
     // Import the backup on a fresh "device"
     const ctx3 = await browser.createBrowserContext();

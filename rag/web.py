@@ -1315,3 +1315,45 @@ async def api_food_cook(request: Request):
     # Pantry items are bought or stored food, not wild finds; COOK_PROMPT carries
     # its own food-safety rules, so skip the foraging guard here.
     return _stream_rag(request, text, COOK_PROMPT, "PANTRY", use_domain_guards=False)
+
+
+# ─────────────────────────────── accounts ───────────────────────────────
+# Username + password sign-in with the key underneath (rag/accounts.py). The
+# password never reaches the hub; it stores only a password-locked key.
+
+from rag import accounts as _accounts  # noqa: E402
+
+
+@app.get("/api/account/salt")
+def account_salt(username: str):
+    acct = _accounts.get_store().get(username)
+    if not acct:
+        raise HTTPException(404, "No account by that name on this hub.")
+    return {"salt": acct.salt, "log_n": acct.log_n}
+
+
+@app.post("/api/account/signup")
+def account_signup(body: dict):
+    body = body or {}
+    try:
+        username = _accounts.normalize(body.get("username", ""))
+        pubkey = _accounts.check_proof(body.get("proof") or {}, username)
+        acct = _accounts.get_store().create(
+            username, pubkey=pubkey, name=str(body.get("name") or username),
+            salt=str(body.get("salt", "")), log_n=int(body.get("log_n") or 0),
+            auth=str(body.get("auth", "")), ncryptsec=body.get("ncryptsec"))
+    except (_accounts.AccountError, ValueError) as e:
+        raise HTTPException(400, str(e))
+    return {"username": acct.username, "pubkey": acct.pubkey, "key_on_hub": acct.ncryptsec is not None}
+
+
+@app.post("/api/account/signin")
+def account_signin(request: Request, body: dict):
+    body = body or {}
+    client = request.client.host if request.client else "?"
+    try:
+        acct = _accounts.get_store().sign_in(str(body.get("username", "")), str(body.get("auth", "")), client)
+    except _accounts.AccountError as e:
+        raise HTTPException(429 if "Too many" in str(e) else 401, str(e))
+    return {"username": acct.username, "pubkey": acct.pubkey, "name": acct.name,
+            "ncryptsec": acct.ncryptsec}

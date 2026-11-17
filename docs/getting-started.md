@@ -207,6 +207,15 @@ Every app has the same bar at the top; tap **‹ Pergamon** to go back home.
   If the phone later can't reach the hub, the installed app shows a short
   "can't reach the hub" page instead of a browser error. Icons are drawn by
   `scripts/make-icons.py`.
+- Accounts — people sign up on Welcome or Me with a username and password,
+  and sign in the same way from any phone. Underneath, each account is a
+  Nostr key: the phone locks it with the password (NIP-49, `ncryptsec1…`)
+  and the hub stores only that locked copy (`build/state/accounts.db`), never
+  the password. *Download key file* saves the locked key to sign in at another
+  hub (Me → Other ways in → Key file). Ticking *Keep my key only on this
+  phone* stores no key on the hub. Wrong passwords are limited to 8 per 15
+  minutes per account and per device. The crypto bundle is rebuilt with
+  `scripts/build-vendor-bundle.sh` (pinned versions).
 
 ## Step 9 — Create your Nostr identity
 
