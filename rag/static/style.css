@@ -281,3 +281,56 @@ a { color: var(--accent); }
 .linklike { background: none; border: none; color: var(--accent); padding: 0; cursor: pointer; font: inherit; text-decoration: underline; }
 .situation { border: 1px solid var(--border); padding: 0.5rem 0.8rem; margin-bottom: 1rem; }
 .situation textarea { width: 100%; margin: 0.5rem 0; font: inherit; }
+
+/* App shell: one bar on every page, a grid of apps on the home screen */
+header.appbar {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: calc(0.9rem + env(safe-area-inset-top)) 1.25rem 0.75rem;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
+}
+.home-link {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+.home-link::before { content: "‹ "; opacity: 0.6; }
+.app-name { font-size: 1.1rem; color: var(--muted); }
+.app-name::before { content: "/ "; opacity: 0.5; }
+body:not(:has(.app-name)) .home-link::before { content: none; }
+
+.apps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  gap: 1.1rem 0.75rem;
+  margin: 0.5rem 0 1.75rem;
+}
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  text-decoration: none;
+  color: var(--fg);
+}
+.app-icon {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 1rem;
+  background: var(--accent-soft);
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  line-height: 1;
+  transition: transform 0.1s;
+}
+.app:active .app-icon { transform: scale(0.94); }
+.app:hover .app-icon { outline: 2px solid var(--accent); }
+.app-label { font-size: 0.85rem; text-align: center; }
+footer { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }

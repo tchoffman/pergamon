@@ -1,0 +1,38 @@
+<section id="situation" class="situation">
+  <div><strong>Current situation:</strong>
+    <span id="sitText">{{ situation.text or "Normal" }}</span>
+    {% if is_host %}<button type="button" id="sitEdit" class="linklike">edit</button>{% endif %}
+  </div>
+  {% if is_host %}
+  <div id="sitForm" class="hidden">
+    <textarea id="sitInput" rows="3" maxlength="1000"
+      placeholder="What's true around here right now? e.g. Power out since Tuesday; wood stove works; water from the creek.">{{ situation.text }}</textarea>
+    <div class="small">
+      {% for key, text in situation_presets.items() %}
+      <button type="button" class="linklike sitPreset" data-text="{{ text }}">{{ key.replace('-', ' ') }}</button> ·
+      {% endfor %}
+      <button type="button" class="linklike sitPreset" data-text="">normal</button>
+    </div>
+    <button type="button" id="sitSave">Save</button>
+    <span class="muted small">Every answer on this hub, web and radio, takes this into account.</span>
+  </div>
+  <script>
+    (function () {
+      const form = document.getElementById("sitForm");
+      const input = document.getElementById("sitInput");
+      document.getElementById("sitEdit").addEventListener("click", () => form.classList.toggle("hidden"));
+      document.querySelectorAll(".sitPreset").forEach((b) =>
+        b.addEventListener("click", () => { input.value = b.dataset.text; }));
+      document.getElementById("sitSave").addEventListener("click", async () => {
+        const r = await fetch("/api/situation", {method: "POST",
+          headers: {"Content-Type": "application/json"}, body: JSON.stringify({text: input.value})});
+        if (r.ok) {
+          const s = await r.json();
+          document.getElementById("sitText").textContent = s.text || "Normal";
+          form.classList.add("hidden");
+        }
+      });
+    })();
+  </script>
+  {% endif %}
+</section>

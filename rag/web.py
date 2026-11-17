@@ -10,6 +10,7 @@ token-by-token. Links out to kiwix-serve for ZIM browse.
 from __future__ import annotations
 
 import asyncio
+import json
 import shutil
 import sys
 import time
@@ -87,22 +88,110 @@ def _status() -> dict:
     }
 
 
+# ─────────────────────────────── app shell ───────────────────────────────
+# One home screen of apps; every page shares templates/_base.html.
+
+APPS = [
+    # (name, path, icon, host_only)
+    ("Ask", "/chat", "💬", False),
+    ("Library", "/library", "📚", False),
+    ("Board", "/board", "📌", False),
+    ("Classifieds", "/classifieds", "🏷️", False),
+    ("Skills", "/skills", "🛠️", False),
+    ("Trades", "/receipts", "🤝", False),
+    ("Household", "/food", "🏠", True),
+    ("Me", "/identity", "👤", False),
+    ("Bulletin", "/bulletin", "🖨️", False),
+    ("Forms", "/forms", "📝", False),
+]
+
+
+def _apps(request: Request) -> list[dict]:
+    show_household = _is_host(request) or ((_local_cfg().get("food") or {}).get("lan_access")) is True
+    return [{"name": n, "href": h, "icon": i} for n, h, i, host_only in APPS
+            if not host_only or show_household]
+
+
+def _home(request: Request, welcome: bool):
+    https_on, _ = _https_settings()
+    return templates.TemplateResponse(request, "home.html", {
+        "apps": _apps(request),
+        "welcome": welcome,
+        # phones need the one-time setup; the hub's own browser doesn't
+        "offer_https": (https_on and request.url.scheme != "https"
+                        and request.url.hostname not in ("localhost", "127.0.0.1", "::1")),
+        "situation": _situation.load(),
+        "situation_presets": _situation.PRESETS,
+        "is_host": _is_host(request),
+    })
+
+
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request):
-    return templates.TemplateResponse(
-        request,
-        "index.html",
-        {
-            "status": _status(),
-            "zims": _zim_list(),
-            "kiwix_available": shutil.which("kiwix-serve") is not None
-            or (REPO_ROOT / "build" / "bin" / "kiwix-serve").exists()
-            or Path("/Applications/Kiwix.app").exists(),
-            "situation": _situation.load(),
-            "situation_presets": _situation.PRESETS,
-            "is_host": _is_host(request),
-        },
-    )
+def home(request: Request):
+    return _home(request, welcome=False)
+
+
+@app.get("/chat", response_class=HTMLResponse)
+def ask_page(request: Request):
+    return templates.TemplateResponse(request, "ask.html", {
+        "status": _status(),
+        "situation": _situation.load(),
+        "situation_presets": _situation.PRESETS,
+        "is_host": _is_host(request),
+    })
+
+
+@app.get("/library", response_class=HTMLResponse)
+def library_page(request: Request):
+    return templates.TemplateResponse(request, "library.html", {
+        "zims": _zim_list(),
+        "kiwix_url": f"http://{request.url.hostname or 'localhost'}:8080",
+        "kiwix_available": shutil.which("kiwix-serve") is not None
+        or (REPO_ROOT / "build" / "bin" / "kiwix-serve").exists()
+        or Path("/Applications/Kiwix.app").exists(),
+    })
+
+
+@app.get("/offline", response_class=HTMLResponse)
+def offline_page(request: Request):
+    return templates.TemplateResponse(request, "offline.html", {})
+
+
+@app.get("/manifest.webmanifest", include_in_schema=False)
+def manifest():
+    from fastapi.responses import JSONResponse
+    icons = [{"src": f"/static/icons/icon-{s}.png", "sizes": f"{s}x{s}", "type": "image/png",
+              "purpose": "any"} for s in (192, 512)]
+    icons.append({"src": "/static/icons/icon-maskable-512.png", "sizes": "512x512",
+                  "type": "image/png", "purpose": "maskable"})
+    return JSONResponse({
+        "name": "Pergamon", "short_name": "Pergamon", "id": "/", "start_url": "/",
+        "scope": "/", "display": "standalone", "background_color": "#fafaf7",
+        "theme_color": "#8b4513", "description": "Your community's apps, running nearby.",
+        "icons": icons,
+    }, media_type="application/manifest+json")
+
+
+def _sw_source() -> str:
+    """The service worker, stamped with a version that changes with the static
+    files so phones pick up new styles and scripts."""
+    import hashlib
+    files = sorted(p for p in STATIC_DIR.rglob("*") if p.is_file() and p.name != "sw.js")
+    h = hashlib.sha256()
+    for p in files:
+        h.update(p.relative_to(STATIC_DIR).as_posix().encode())
+        h.update(p.read_bytes())
+    precache = ["/offline"] + [f"/static/{p.relative_to(STATIC_DIR).as_posix()}" for p in files]
+    return ((STATIC_DIR / "sw.js").read_text()
+            .replace("__VERSION__", h.hexdigest()[:12])
+            .replace("__PRECACHE__", json.dumps(precache)))
+
+
+@app.get("/sw.js", include_in_schema=False)
+def service_worker():
+    from fastapi.responses import Response
+    return Response(_sw_source(), media_type="text/javascript",
+                    headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/situation")
@@ -745,10 +834,9 @@ for _p in _PROBE_PATHS:
 
 @app.get("/welcome", response_class=HTMLResponse)
 def welcome(request: Request):
-    https_on, _ = _https_settings()
-    return templates.TemplateResponse(request, "welcome.html", {
-        "status": _status(),
-        "offer_https": https_on and request.url.scheme != "https"})
+    """Where phones land when they join the hub's Wi-Fi: the home screen plus a
+    short introduction and a key for posting."""
+    return _home(request, welcome=True)
 
 
 # ─────────────────────────── secure connection setup ───────────────────────────
@@ -981,8 +1069,8 @@ def api_publish(body: dict):
 
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
-    from fastapi.responses import Response
-    return Response(status_code=204)
+    from fastapi.responses import FileResponse
+    return FileResponse(STATIC_DIR / "icons" / "icon-32.png", media_type="image/png")
 
 
 # ─────────────────────────────── skills ───────────────────────────────

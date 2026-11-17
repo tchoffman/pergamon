@@ -1,27 +1,11 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pergamon · Skills</title>
-  <link rel="stylesheet" href="/static/style.css" />
+{% extends "_base.html" %}
+{% block title %}Pergamon · Skills{% endblock %}
+{% block app_name %}<span class="app-name">Skills</span>{% endblock %}
+{% block head %}
   <script src="/static/vendor/noble-nostr.js"></script>
   <script src="/static/pergamon.js"></script>
-</head>
-<body>
-  <header>
-    <h1>Pergamon</h1>
-    <nav class="status">
-      <a href="/">Ask</a><span>·</span>
-      <a href="/board">Board</a><span>·</span>
-      <a href="/classifieds">Classifieds</a><span>·</span>
-      <a href="/skills" class="muted">Skills</a><span>·</span>
-      <a href="/receipts">Receipts</a><span>·</span>
-      <a href="/identity">Identity</a>
-    </nav>
-  </header>
-
-  <main>
+{% endblock %}
+{% block content %}
     <section>
       <form id="filterForm">
         <select id="cat" aria-label="category">
@@ -62,10 +46,8 @@
       <div id="mine"></div>
     </section>
     <p class="warn hidden" id="noKey">To offer a skill, <a href="/welcome">create a key on this device</a>.</p>
-  </main>
-
-  <footer><span class="muted">Offline library · everything runs locally.</span></footer>
-
+{% endblock %}
+{% block scripts %}
   <script>
     const HUB = {{ (active.display_name or active.name) | tojson if active else "null" }};
     const K = Pergamon.Keys;
@@ -180,5 +162,4 @@
     if (whoami()) loadMine();
     load();
   </script>
-</body>
-</html>
+{% endblock %}

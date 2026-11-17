@@ -155,17 +155,27 @@ Either way you can type a term and search across every indexed article.
 make web
 ```
 
-Opens the Pergamon browser UI at `http://localhost:8090`. Features:
+Opens Pergamon at `http://localhost:8090`: a home screen of apps (Ask,
+Library, Board, Classifieds, Skills, Trades, Household, Me, Bulletin, Forms).
+Every app has the same bar at the top; tap **‹ Pergamon** to go back home.
 
-- **Ask / Plan / Search** mode selector
-  - *Ask* — streams a RAG answer with citations
+- **Ask** (`/chat`) has three modes:
+  - *Ask* — a conversational answer; follow-up questions keep the context
   - *Plan* — structured plan output (Goal / Steps / Resources / Risks /
     Verification)
   - *Search* — top-K raw retrieval hits, no LLM involved
-- **Board**, **Classifieds**, **Receipts**, **Identity** in the header
-  (steps 9–12)
+- **Library** (`/library`) searches the indexed library and opens each
+  collection in the reader.
+- **Household** (the food inventory) only appears on the hub itself, unless
+  `food: {lan_access: true}` is set.
 - Phone-friendly — `make web` prints the address phones on the same WiFi
   can use (e.g. `http://192.168.1.20:8090/`). Send phones to `/welcome`.
+- Installable — on a phone, *Add to Home Screen* (iPhone) or *Install app*
+  (Android) gives a Pergamon icon that opens full-screen. Android needs the
+  secure connection first (`hub: {https: true}`, then `/trust` on the phone).
+  If the phone later can't reach the hub, the installed app shows a short
+  "can't reach the hub" page instead of a browser error. Icons are drawn by
+  `scripts/make-icons.py`.
 
 ## Step 9 — Create your Nostr identity
 

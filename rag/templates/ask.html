@@ -1,56 +1,8 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pergamon</title>
-  <link rel="stylesheet" href="/static/style.css" />
-  <script src="/static/vendor/noble-nostr.js"></script>
-  <script src="/static/pergamon.js"></script>
-</head>
-<body>
-  <header>
-    <h1>Pergamon</h1>
-    <nav class="status">
-      <span>{{ status.chunks }} chunks</span>
-      <span>·</span>
-      <span>{{ status.zims }} ZIM{% if status.zims != 1 %}s{% endif %}</span>
-      <span>·</span>
-      <span class="muted">{{ status.model }}</span>
-      <span>·</span>
-      <a href="/food">Food</a>
-      <span>·</span>
-      <a href="/board">Board</a>
-      <span>·</span>
-      <a href="/classifieds">Classifieds</a>
-      <span>·</span>
-      <a href="/skills">Skills</a><span>·</span>
-      <a href="/receipts">Receipts</a><span>·</span>
-      <a href="/identity">Identity</a>
-    </nav>
-  </header>
-
-  <main>
-    <section id="situation" class="situation">
-      <div><strong>Current situation:</strong>
-        <span id="sitText">{{ situation.text or "Normal" }}</span>
-        {% if is_host %}<button type="button" id="sitEdit" class="linklike">edit</button>{% endif %}
-      </div>
-      {% if is_host %}
-      <div id="sitForm" class="hidden">
-        <textarea id="sitInput" rows="3" maxlength="1000"
-          placeholder="What's true around here right now? e.g. Power out since Tuesday; wood stove works; water from the creek.">{{ situation.text }}</textarea>
-        <div class="small">
-          {% for key, text in situation_presets.items() %}
-          <button type="button" class="linklike sitPreset" data-text="{{ text }}">{{ key.replace('-', ' ') }}</button> ·
-          {% endfor %}
-          <button type="button" class="linklike sitPreset" data-text="">normal</button>
-        </div>
-        <button type="button" id="sitSave">Save</button>
-        <span class="muted small">Every answer on this hub, web and radio, takes this into account.</span>
-      </div>
-      {% endif %}
-    </section>
+{% extends "_base.html" %}
+{% block title %}Pergamon · Ask{% endblock %}
+{% block app_name %}<span class="app-name">Ask</span>{% endblock %}
+{% block content %}
+    {% include "_situation.html" %}
     <form id="askForm">
       <select id="mode" aria-label="mode">
         <option value="ask">Ask</option>
@@ -61,7 +13,7 @@
         id="q"
         name="q"
         type="text"
-        placeholder="Ask the library…"
+        placeholder="Ask anything…"
         autocomplete="off"
         autofocus
       />
@@ -79,30 +31,10 @@
       <ul id="sources"></ul>
     </section>
 
-    {% if zims %}
-    <section class="browse">
-      <h2>Browse the library</h2>
-      <p class="muted">Full-text search within each ZIM — handy when you want to skim articles directly.</p>
-      <ul class="zims">
-        {% for z in zims %}
-        <li>
-          <a href="http://localhost:8080/viewer#{{ z.stem }}" target="_blank" rel="noopener">
-            {{ z.stem }} <span class="muted">({{ z.size_mb }} MB)</span>
-          </a>
-        </li>
-        {% endfor %}
-      </ul>
-      {% if not kiwix_available %}
-      <p class="warn">kiwix-serve isn't running. Start it with <code>make serve</code> in another terminal.</p>
-      {% endif %}
-    </section>
-    {% endif %}
-  </main>
-
-  <footer>
-    <span class="muted">Offline library · everything runs locally.</span>
-  </footer>
-
+    <p class="muted small">{{ status.model }} · library: {{ status.chunks }} passages,
+      {{ status.zims }} collection{% if status.zims != 1 %}s{% endif %} · <a href="/library">browse the library</a></p>
+{% endblock %}
+{% block scripts %}
   <script>
     const form = document.getElementById("askForm");
     const input = document.getElementById("q");
@@ -204,25 +136,6 @@
       };
     }
 
-    // ── current situation (host edits; everyone sees) ──
-    const sitEdit = document.getElementById("sitEdit");
-    if (sitEdit) {
-      const sitForm = document.getElementById("sitForm");
-      const sitInput = document.getElementById("sitInput");
-      sitEdit.addEventListener("click", () => sitForm.classList.toggle("hidden"));
-      document.querySelectorAll(".sitPreset").forEach((b) =>
-        b.addEventListener("click", () => { sitInput.value = b.dataset.text; }));
-      document.getElementById("sitSave").addEventListener("click", async () => {
-        const r = await fetch("/api/situation", {method: "POST",
-          headers: {"Content-Type": "application/json"}, body: JSON.stringify({text: sitInput.value})});
-        if (r.ok) {
-          const s = await r.json();
-          document.getElementById("sitText").textContent = s.text || "Normal";
-          sitForm.classList.add("hidden");
-        }
-      });
-    }
-
     // ── conversation: one per browser tab, so follow-ups make sense ──
     const thread = document.getElementById("thread");
     const turns = document.getElementById("turns");
@@ -287,11 +200,10 @@
 
     modeSel.addEventListener("change", () => {
       input.placeholder = {
-        ask: "Ask the library…",
+        ask: "Ask anything…",
         plan: "What's the goal?",
         search: "Search for…",
       }[modeSel.value];
     });
   </script>
-</body>
-</html>
+{% endblock %}

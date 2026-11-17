@@ -32,7 +32,7 @@ def test_only_host_can_change_it(tmp_path, monkeypatch):
     c = TestClient(web.app)
     assert c.post("/api/situation", json={"text": "Power out"}).json()["text"] == "Power out"
     assert c.get("/api/situation").json()["text"] == "Power out"
-    assert "Power out" in c.get("/").text
+    assert "Power out" in c.get("/chat").text
     monkeypatch.setattr(web, "_is_host", lambda request: False)
     assert c.post("/api/situation", json={"text": "hacked"}).status_code == 403
-    assert 'id="sitEdit"' not in c.get("/").text
+    assert 'id="sitEdit"' not in c.get("/chat").text

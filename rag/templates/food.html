@@ -1,23 +1,7 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pergamon · Food</title>
-  <link rel="stylesheet" href="/static/style.css" />
-</head>
-<body>
-  <header>
-    <h1>Pergamon</h1>
-    <nav class="status">
-      <a href="/">Ask</a><span>·</span>
-      <a href="/food" class="muted">Food</a><span>·</span>
-      <a href="/board">Board</a><span>·</span>
-      <a href="/classifieds">Classifieds</a>
-    </nav>
-  </header>
-
-  <main>
+{% extends "_base.html" %}
+{% block title %}Pergamon · Household{% endblock %}
+{% block app_name %}<span class="app-name">Household</span>{% endblock %}
+{% block content %}
     <p class="muted small">Your household's food on hand. Stays on this machine — never shared.</p>
 
     <section>
@@ -53,10 +37,8 @@
       </form>
       <div id="items"></div>
     </section>
-  </main>
-
-  <footer><span class="muted">Offline library · everything runs locally.</span></footer>
-
+{% endblock %}
+{% block scripts %}
   <script>
     const SOON = {{ soon_days }};
     const el = (tag, cls, text) => {
@@ -159,5 +141,4 @@
 
     load();
   </script>
-</body>
-</html>
+{% endblock %}

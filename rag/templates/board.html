@@ -1,29 +1,11 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pergamon · Board</title>
-  <link rel="stylesheet" href="/static/style.css" />
+{% extends "_base.html" %}
+{% block title %}Pergamon · Board{% endblock %}
+{% block app_name %}<span class="app-name">Board</span>{% endblock %}
+{% block head %}
   <script src="/static/vendor/noble-nostr.js"></script>
   <script src="/static/pergamon.js"></script>
-</head>
-<body>
-  <header>
-    <h1>Pergamon</h1>
-    <nav class="status">
-      <a href="/">Ask</a><span>·</span>
-      <a href="/board" class="muted">Board</a><span>·</span>
-      <a href="/classifieds">Classifieds</a><span>·</span>
-      <a href="/skills">Skills</a><span>·</span>
-      <a href="/receipts">Receipts</a><span>·</span>
-      <a href="/identity">Identity</a><span>·</span>
-      <a href="/bulletin">Print bulletin</a><span>·</span>
-      <a href="/forms">Print forms</a>
-    </nav>
-  </header>
-
-  <main>
+{% endblock %}
+{% block content %}
     <section>
       <form id="filterForm">
         <select id="cat" aria-label="category">
@@ -55,10 +37,8 @@
       </form>
       <div id="postResult" class="muted"></div>
     </section>
-  </main>
-
-  <footer><span class="muted">Offline library · everything runs locally.</span></footer>
-
+{% endblock %}
+{% block scripts %}
   <script>
     const el = (tag, cls, text) => {
       const n = document.createElement(tag);
@@ -129,5 +109,4 @@
 
     load();
   </script>
-</body>
-</html>
+{% endblock %}

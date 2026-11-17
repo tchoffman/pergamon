@@ -1,15 +1,7 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pergamon — secure connection</title>
-  <link rel="stylesheet" href="/static/style.css" />
-</head>
-<body>
-  <header><h1>Secure connection</h1>
-    <div class="status muted">One-time setup for this device</div></header>
-  <main>
+{% extends "_base.html" %}
+{% block title %}Pergamon · Secure connection{% endblock %}
+{% block app_name %}<span class="app-name">Secure connection</span>{% endblock %}
+{% block content %}
     {% if secure %}
       <p id="state" class="ok"><strong>You're connected securely.</strong></p>
       <p><a href="/welcome">Continue to Pergamon →</a></p>
@@ -71,7 +63,8 @@
 
     <p class="muted small">To make sure you're trusting the right hub, compare this fingerprint
       with the one the host sees when Pergamon starts:<br><code>{{ fingerprint }}</code></p>
-  </main>
+{% endblock %}
+{% block scripts %}
   {% if not secure %}
   <script>
     // The check URL is HTTPS: the request only succeeds once this browser trusts the hub.
@@ -92,5 +85,4 @@
     check();
   </script>
   {% endif %}
-</body>
-</html>
+{% endblock %}

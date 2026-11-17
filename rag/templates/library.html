@@ -1,0 +1,63 @@
+{% extends "_base.html" %}
+{% block title %}Pergamon · Library{% endblock %}
+{% block app_name %}<span class="app-name">Library</span>{% endblock %}
+{% block content %}
+  <form id="searchForm">
+    <input id="q" type="text" placeholder="Find passages in the library…" autocomplete="off" />
+    <button type="submit">Search</button>
+  </form>
+  <div id="hits"></div>
+
+  <section class="browse">
+    <h2>Collections</h2>
+    {% if zims %}
+    <p class="muted">Open a collection to read it like a website, with its own search.</p>
+    <ul class="zims">
+      {% for z in zims %}
+      <li>
+        <a href="{{ kiwix_url }}/viewer#{{ z.stem }}" target="_blank" rel="noopener">
+          {{ z.stem }} <span class="muted">({{ z.size_mb }} MB)</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% if not kiwix_available %}
+    <p class="warn">The reader isn't installed on this hub. The host can start it with
+      <code>make serve</code>.</p>
+    {% endif %}
+    {% else %}
+    <p class="muted">No collections installed yet. The host can add some with <code>pergamon setup</code>.</p>
+    {% endif %}
+  </section>
+{% endblock %}
+{% block scripts %}
+  <script>
+    const hits = document.getElementById("hits");
+    document.getElementById("searchForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const q = document.getElementById("q").value.trim();
+      if (!q) return;
+      hits.innerHTML = '<p class="muted">Searching…</p>';
+      try {
+        const data = await (await fetch("/search?q=" + encodeURIComponent(q))).json();
+        hits.innerHTML = "";
+        if (!data.hits || !data.hits.length) {
+          hits.innerHTML = '<p class="muted">Nothing found.</p>';
+          return;
+        }
+        for (const h of data.hits) {
+          const div = document.createElement("div");
+          div.className = "listing";
+          const t = document.createElement("strong");
+          t.textContent = h.label;
+          const p = document.createElement("p");
+          p.textContent = h.preview + (h.preview.length >= 600 ? " …" : "");
+          div.append(t, p);
+          hits.appendChild(div);
+        }
+      } catch (err) {
+        hits.innerHTML = '<p class="warn">Search failed. Is the library indexed?</p>';
+      }
+    });
+  </script>
+{% endblock %}

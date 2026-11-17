@@ -135,6 +135,26 @@ async function person(browser, name) {
     await p.waitForFunction(() => document.getElementById("soon").textContent.includes("1 qt"), { timeout: 10000 });
     check("−1 updates the quantity", true);
 
+    // App shell: home screen → every app → back home in one tap; installable
+    await p.goto(BASE + "/", { waitUntil: "networkidle0" });
+    const apps = await p.$$eval("a.app", (as) => as.map((a) => a.getAttribute("href")));
+    let roundTrips = 0;
+    for (const href of apps) {
+      await p.goto(BASE + "/", { waitUntil: "networkidle0" });
+      await Promise.all([p.waitForNavigation({ waitUntil: "networkidle0" }), p.click(`a.app[href="${href}"]`)]);
+      await Promise.all([p.waitForNavigation({ waitUntil: "networkidle0" }), p.click('a[href="/"]')]);
+      if ((await p.$$("a.app")).length === apps.length) roundTrips++;
+    }
+    check(`home → each of ${apps.length} apps → home`, apps.length >= 8 && roundTrips === apps.length,
+          `${roundTrips}/${apps.length}`);
+    const sw = await p.evaluate(async () => {
+      const reg = await navigator.serviceWorker.ready;
+      return !!reg.active;
+    });
+    check("service worker active (installable)", sw);
+    const cached = await p.evaluate(async () => !!(await caches.match("/offline")));
+    check("offline page cached for when the hub is out of reach", cached);
+
     // Import the backup on a fresh "device"
     const ctx3 = await browser.createBrowserContext();
     const p3 = await ctx3.newPage();

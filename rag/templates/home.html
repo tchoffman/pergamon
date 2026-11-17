@@ -1,0 +1,33 @@
+{% extends "_base.html" %}
+{% block head %}
+  <script src="/static/vendor/noble-nostr.js"></script>
+  <script src="/static/pergamon.js"></script>
+{% endblock %}
+{% block content %}
+  {% if welcome %}
+  <p>You're connected to the local community network. There's no internet here; everything
+    below runs on a machine nearby.</p>
+  {% endif %}
+  {% if offer_https %}
+  <div class="listing"><a href="/trust"><strong>Set up a secure connection</strong></a>
+    <div class="muted small">One-time step, about a minute. Lets you add Pergamon to your home
+      screen and use your camera for scanning.</div></div>
+  {% endif %}
+
+  <nav class="apps" aria-label="Apps">
+    {% for app in apps %}
+    <a class="app" href="{{ app.href }}">
+      <span class="app-icon" aria-hidden="true">{{ app.icon }}</span>
+      <span class="app-label">{{ app.name }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+
+  {% include "_situation.html" %}
+
+  {% if welcome %}
+  {% include "_device_key.html" %}
+  {% endif %}
+  <p class="muted small">Tip: add Pergamon to your home screen. On iPhone, tap Share → Add to Home
+    Screen; on Android, open the browser menu → Install app.</p>
+{% endblock %}
