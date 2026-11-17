@@ -95,6 +95,9 @@
       const rep = el("div", "muted small", "");
       c.appendChild(rep);
       reputation(l.pubkey).then(t => { if (t) rep.textContent = "reputation: " + t; });
+      c.dataset.pubkey = l.pubkey;
+      PergamonModerate.controls(c, { id: l.id, pubkey: l.pubkey, kind: 30402, d: l.d, preview: l.title },
+        (pk) => document.querySelectorAll(`.listing[data-pubkey="${pk}"]`).forEach((n) => n.remove()));
       return c;
     }
 

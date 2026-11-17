@@ -94,24 +94,26 @@ def _status() -> dict:
 # One home screen of apps; every page shares templates/_base.html.
 
 APPS = [
-    # (name, path, icon, host_only)
-    ("Ask", "/chat", "💬", False),
-    ("Library", "/library", "📚", False),
-    ("Board", "/board", "📌", False),
-    ("Classifieds", "/classifieds", "🏷️", False),
-    ("Skills", "/skills", "🛠️", False),
-    ("Trades", "/receipts", "🤝", False),
-    ("Household", "/food", "🏠", True),
-    ("Me", "/identity", "👤", False),
-    ("Bulletin", "/bulletin", "🖨️", False),
-    ("Forms", "/forms", "📝", False),
+    # (name, path, icon, who sees it: None = everyone, "household", "host")
+    ("Ask", "/chat", "💬", None),
+    ("Library", "/library", "📚", None),
+    ("Board", "/board", "📌", None),
+    ("Classifieds", "/classifieds", "🏷️", None),
+    ("Skills", "/skills", "🛠️", None),
+    ("Trades", "/receipts", "🤝", None),
+    ("Household", "/food", "🏠", "household"),
+    ("Me", "/identity", "👤", None),
+    ("Bulletin", "/bulletin", "🖨️", None),
+    ("Forms", "/forms", "📝", None),
+    ("Moderation", "/moderation", "🛡️", "host"),
 ]
 
 
 def _apps(request: Request) -> list[dict]:
-    show_household = _is_host(request) or ((_local_cfg().get("food") or {}).get("lan_access")) is True
-    return [{"name": n, "href": h, "icon": i} for n, h, i, host_only in APPS
-            if not host_only or show_household]
+    host = _is_host(request)
+    visible = {None: True, "host": host,
+               "household": host or ((_local_cfg().get("food") or {}).get("lan_access")) is True}
+    return [{"name": n, "href": h, "icon": i} for n, h, i, who in APPS if visible[who]]
 
 
 def _home(request: Request, welcome: bool):
@@ -1067,6 +1069,9 @@ def api_publish(body: dict):
         raise HTTPException(400, "malformed event")
     if not _verify(ev):
         raise HTTPException(400, "signature does not verify")
+    from rag import moderation as _mod
+    if _mod.is_blocked(ev.pubkey):
+        raise HTTPException(403, "This hub's host has blocked this key from posting here.")
     _check_publishable(ev)
     results = _cl.publish(ev, _load_relays_from_config())
     if ev.kind == _cl.KIND_CLASSIFIED:
@@ -1357,3 +1362,47 @@ def account_signin(request: Request, body: dict):
         raise HTTPException(429 if "Too many" in str(e) else 401, str(e))
     return {"username": acct.username, "pubkey": acct.pubkey, "name": acct.name,
             "ncryptsec": acct.ncryptsec}
+
+
+# ─────────────────────────────── moderation ───────────────────────────────
+# The host hides posts and blocks keys on their own hub (rag/moderation.py).
+
+from rag import moderation as _moderation  # noqa: E402
+
+
+def _moderator_only(request: Request) -> None:
+    if not _is_host(request):
+        raise HTTPException(403, "Only the hub's host can hide posts or block keys.")
+
+
+@app.get("/moderation", response_class=HTMLResponse)
+def moderation_page(request: Request):
+    _moderator_only(request)
+    return templates.TemplateResponse(request, "moderation.html", {"mod": _moderation.summary()})
+
+
+@app.get("/api/moderation")
+def api_moderation(request: Request):
+    _moderator_only(request)
+    return _moderation.summary()
+
+
+@app.post("/api/moderation/{action}")
+def api_moderation_change(request: Request, action: str, body: dict):
+    _moderator_only(request)
+    body = body or {}
+    try:
+        if action == "hide":
+            key = _moderation.hide(str(body.get("id", "")), kind=body.get("kind"),
+                                   pubkey=body.get("pubkey"), tags=[["d", body["d"]]] if body.get("d") else [],
+                                   preview=str(body.get("preview", "")))
+            return {"hidden": key}
+        if action == "unhide":
+            return {"unhidden": _moderation.unhide(str(body.get("key", "")))}
+        if action == "block":
+            return {"blocked": _moderation.block(str(body.get("pubkey", "")), str(body.get("note", "")))}
+        if action == "unblock":
+            return {"unblocked": _moderation.unblock(str(body.get("pubkey", "")))}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    raise HTTPException(404, "unknown moderation action")

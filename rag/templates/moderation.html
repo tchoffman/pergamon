@@ -1,0 +1,57 @@
+{% extends "_base.html" %}
+{% block title %}Pergamon · Moderation{% endblock %}
+{% block app_name %}<span class="app-name">Moderation</span>{% endblock %}
+{% block content %}
+  <p class="muted">What you hide or block disappears from every page and radio command on this hub,
+    and sync won't pass it on. Nothing is deleted, and other hubs aren't affected. Hide or block
+    from the Board, Classifieds or Skills pages; undo here.</p>
+
+  <section>
+    <h2>Blocked people ({{ mod.blocked|length }})</h2>
+    {% for b in mod.blocked %}
+    <div class="listing" data-pubkey="{{ b.pubkey }}">
+      <div class="mono small">{{ b.npub }}</div>
+      {% if b.note %}<div class="muted small">{{ b.note }}</div>{% endif %}
+      <button type="button" class="small-btn secondary undo" data-action="unblock"
+        data-body='{{ {"pubkey": b.pubkey}|tojson }}'>Unblock</button>
+    </div>
+    {% else %}
+    <p class="muted">Nobody is blocked.</p>
+    {% endfor %}
+    <form id="blockForm">
+      <input id="blockWho" type="text" placeholder="Block someone by npub…" autocomplete="off" />
+      <button type="submit">Block</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>Hidden posts ({{ mod.hidden|length }})</h2>
+    {% for h in mod.hidden %}
+    <div class="listing">
+      <div>{{ h.preview or "(no preview)" }}</div>
+      <div class="muted small mono">{{ h.id[:16] }}…</div>
+      <button type="button" class="small-btn secondary undo" data-action="unhide"
+        data-body='{{ {"key": h.id}|tojson }}'>Unhide</button>
+    </div>
+    {% else %}
+    <p class="muted">Nothing is hidden.</p>
+    {% endfor %}
+  </section>
+{% endblock %}
+{% block scripts %}
+  <script>
+    async function act(action, body) {
+      const r = await fetch("/api/moderation/" + action, { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) { alert((await r.json().catch(() => ({}))).detail || r.statusText); return; }
+      location.reload();
+    }
+    document.querySelectorAll(".undo").forEach((b) =>
+      b.addEventListener("click", () => act(b.dataset.action, JSON.parse(b.dataset.body))));
+    document.getElementById("blockForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const who = document.getElementById("blockWho").value.trim();
+      if (who) act("block", { pubkey: who });
+    });
+  </script>
+{% endblock %}

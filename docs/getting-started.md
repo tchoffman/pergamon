@@ -216,6 +216,14 @@ Every app has the same bar at the top; tap **‹ Pergamon** to go back home.
   phone* stores no key on the hub. Wrong passwords are limited to 8 per 15
   minutes per account and per device. The crypto bundle is rebuilt with
   `scripts/build-vendor-bundle.sh` (pinned versions).
+- Moderation (host only) — on the hub machine, Board, Classifieds and Skills
+  cards show *Hide* and *Block author*; the 🛡️ Moderation app lists what's
+  hidden and blocked, with undo. Hidden or blocked content disappears from
+  every page, radio command and printed bulletin on this hub, and sync and
+  USB bundles never pass it on; blocked keys can't post here. Nothing is
+  deleted, and other hubs are unaffected. From the command line:
+  `pergamon moderation [hide <id> | block <npub> | unhide | unblock]`. The list
+  lives in `build/state/moderation.json`.
 
 ## Step 9 — Create your Nostr identity
 

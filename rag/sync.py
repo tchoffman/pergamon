@@ -32,6 +32,7 @@ from pathlib import Path
 import websockets
 from rich.console import Console
 
+from rag import moderation
 from rag.nostr import (
     Event,
     _load_relays_from_config,
@@ -127,7 +128,8 @@ def read_bundle(path: Path) -> tuple[list[Event], int]:
             bad += 1
             continue
         if verify_event(ev):
-            good.append(ev)
+            if moderation.allowed(ev):  # hidden or blocked here: not loaded
+                good.append(ev)
         else:
             bad += 1
     return good, bad

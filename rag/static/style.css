@@ -349,3 +349,4 @@ input[type="date"], input[type="email"] {
 input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 form > .row { flex-basis: 100%; }
 .row input, .row textarea { width: 100%; }
+.mod-row { margin-top: 0.4rem; color: var(--muted); }

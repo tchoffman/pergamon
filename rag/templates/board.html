@@ -64,6 +64,9 @@
           c.appendChild(head);
           c.appendChild(el("p", "", p.text));
           if (p.location) c.appendChild(el("div", "muted small", p.location));
+          c.dataset.pubkey = p.pubkey;
+          PergamonModerate.controls(c, { id: p.id, pubkey: p.pubkey, kind: 1, preview: p.text },
+            (pk) => box.querySelectorAll(`[data-pubkey="${pk}"]`).forEach((n) => n.remove()));
           box.appendChild(c);
         });
       } catch (e) {

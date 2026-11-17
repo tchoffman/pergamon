@@ -73,6 +73,9 @@
                     s.cert ? "training: " + s.cert : ""].filter(Boolean);
       if (meta.length) c.appendChild(el("div", "muted small", meta.join(" · ")));
       c.appendChild(el("div", "muted small", "from " + s.pubkey.slice(0, 12) + "… · ref " + s.d));
+      c.dataset.pubkey = s.pubkey;
+      PergamonModerate.controls(c, { id: s.id, pubkey: s.pubkey, kind: 30407, d: s.d, preview: s.title },
+        (pk) => document.querySelectorAll(`.listing[data-pubkey="${pk}"]`).forEach((n) => n.remove()));
       return c;
     }
 

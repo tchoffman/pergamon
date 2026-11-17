@@ -53,6 +53,25 @@ async function person(browser, name) {
     await p.waitForFunction(() => document.getElementById("posts").textContent.includes("brown dog"), { timeout: 10000 });
     check("board post signed in browser and listed", true);
 
+    // Host moderation: this browser is on the hub machine, so it's the host
+    await p.goto(BASE + "/board", { waitUntil: "networkidle0" });
+    await p.waitForFunction(() => [...document.querySelectorAll("#posts .mod-row button")]
+      .some((b) => b.textContent === "Hide"), { timeout: 10000 });
+    const before = await p.$$eval("#posts .listing", (n) => n.length);
+    await p.evaluate(() => [...document.querySelectorAll("#posts .mod-row button")]
+      .find((b) => b.textContent === "Hide").click());
+    await p.waitForFunction((n) => document.querySelectorAll("#posts .listing").length === n - 1, {}, before);
+    await p.reload({ waitUntil: "networkidle0" });
+    await p.waitForFunction(() => !document.getElementById("posts").textContent.includes("Loading"));
+    const after = await p.$$eval("#posts .listing", (n) => n.length);
+    check("host hides a board post; it stays gone after reload", after === before - 1, `${before} → ${after}`);
+    await p.goto(BASE + "/moderation", { waitUntil: "networkidle0" });
+    await Promise.all([p.waitForNavigation({ waitUntil: "networkidle0" }),
+                       p.evaluate(() => document.querySelector(".undo[data-action=unhide]").click())]);
+    await p.goto(BASE + "/board", { waitUntil: "networkidle0" });
+    await p.waitForFunction((n) => document.querySelectorAll("#posts .listing").length === n, { timeout: 10000 }, before);
+    check("unhide on the Moderation page brings it back", true);
+
     // Classifieds
     await p.goto(BASE + "/classifieds", { waitUntil: "networkidle0" });
     await p.type("#p_title", "Goat milk");

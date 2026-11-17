@@ -154,8 +154,13 @@ async def subscribe_and_collect(
     filters: dict,
     max_events: int,
     timeout: float = 10.0,
+    moderated: bool = True,
 ) -> list[Event]:
-    """Open a REQ subscription on one relay, collect events until EOSE or max_events."""
+    """Open a REQ subscription on one relay, collect events until EOSE or max_events.
+
+    Events the host hid or whose author they blocked (rag/moderation.py) are
+    dropped here, so no page, radio command or sync ever sees them.
+    `moderated=False` is for the host's own moderation tools."""
     events: list[Event] = []
     sub_id = secrets.token_hex(4)
     try:
@@ -180,7 +185,7 @@ async def subscribe_and_collect(
                         id=raw_event["id"],
                         sig=raw_event["sig"],
                     )
-                    if verify_event(ev):
+                    if verify_event(ev) and (not moderated or _moderation_allows(ev)):
                         events.append(ev)
                 elif msg[0] == "EOSE" and len(msg) >= 2 and msg[1] == sub_id:
                     break
@@ -189,6 +194,11 @@ async def subscribe_and_collect(
         console.print(f"[yellow]relay {relay_url} error:[/yellow] {e}", highlight=False)
     return events
 
+
+
+def _moderation_allows(ev: Event) -> bool:
+    from rag import moderation
+    return moderation.allowed(ev)
 
 
 async def afetch_events(relay_urls: list[str], filters: dict, limit: int = 100) -> list[Event]:
