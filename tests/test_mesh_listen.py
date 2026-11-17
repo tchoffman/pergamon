@@ -202,3 +202,23 @@ def test_mesh_send_reports_delivery_only_when_acknowledged(monkeypatch):
     assert tools.send("!e06fbbd0", "hi") == 0
     monkeypatch.setattr(listen, "_send_confirmed", lambda iface, dest, text: False)
     assert tools.send("!e06fbbd0", "hi") == 1
+
+
+def test_radio_answers_drop_sentences_about_sources():
+    from modules.comms.meshtastic.common import drop_meta
+    a = ("Check the library for the standard recipe steps. Preheat your oven to 375°F. "
+         "Bake 9 to 11 minutes. Note that I cannot verify specific library passages for this recipe.")
+    assert drop_meta(a, "How do I make cookies?") == "Preheat your oven to 375°F. Bake 9 to 11 minutes."
+    assert drop_meta("I found a classic recipe. Use 2 cups flour.", "cookies?") == "Use 2 cups flour."
+    assert drop_meta(a, "What's in the library about cookies?") == a  # asked about it
+    assert drop_meta("The library is closed.", "x") == "The library is closed."  # never empty
+    content = "Here's the trick: chill the dough. Beans are a good source of protein. Verify the oil is hot."
+    assert drop_meta(content, "x") == content  # ordinary words stay
+    assert drop_meta("I can provide a standard recipe based on general baking knowledge. Use butter.",
+                     "x") == "Use butter."
+
+
+def test_meta_sentence_with_amounts_is_kept():
+    from modules.comms.meshtastic.common import drop_meta
+    a = "I found a classic recipe in the library that uses 2¼ cups flour, 1 cup butter. Bake at 375°F."
+    assert drop_meta(a, "cookies?") == "A classic recipe that uses 2¼ cups flour, 1 cup butter. Bake at 375°F."

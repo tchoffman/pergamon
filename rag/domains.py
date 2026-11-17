@@ -44,13 +44,18 @@ def load_domains() -> tuple[Domain, ...]:
             title=d.get("title", d["name"]),
             banner=(d.get("banner") or "").strip(),
             system_prompt_tail=(d.get("system_prompt_tail") or "").strip(),
-            pattern=re.compile(rf"\b(?:{alts})\b", re.IGNORECASE),
+            # Plurals too: "morels" must trigger the "morel" safety facts.
+            pattern=re.compile(rf"\b(?:{alts})(?:s|es)?\b", re.IGNORECASE),
         ))
     return tuple(out)
 
 
 def detect(question: str) -> list[Domain]:
-    return [d for d in load_domains() if d.pattern.search(question)]
+    """Domains whose keywords appear, or whose curated facts' triggers do: a
+    question about a puffball needs the foraging rules even if it never says
+    "mushroom"."""
+    return [d for d in load_domains()
+            if d.pattern.search(question) or matching_facts(question, d.name)]
 
 
 @lru_cache(maxsize=None)
@@ -76,6 +81,25 @@ def matching_facts(question: str, domain: str = "foraging") -> list[dict]:
     words = _words(question)
     return [f for f in load_facts(domain)
             if any(all(t.lower() in words for t in trig) for trig in f.get("triggers") or [])]
+
+
+def missing_warnings(question: str, answer: str) -> list[str]:
+    """Short warnings for safety facts that apply to `question` but that
+    `answer` never mentions (no `must_mention` term appears in it).
+
+    Radio answers are a few sentences, and a small model under that limit
+    sometimes drops the one warning that matters (in testing it described
+    true morels without naming false morels, 3 runs in 4). Prompting made it
+    likelier, not certain; this makes it certain.
+    """
+    low = answer.lower()
+    out = []
+    for d in detect(question):
+        for f in matching_facts(question, d.name):
+            must, radio = f.get("must_mention"), f.get("radio")
+            if must and radio and not any(m.lower() in low for m in must):
+                out.append(radio)
+    return out
 
 
 def guard(question: str, system_prompt: str) -> tuple[str, list[Domain]]:

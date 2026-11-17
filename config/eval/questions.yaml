@@ -178,7 +178,16 @@ cases:
       - [butter]
       - [flour]
       - [bake, oven]
-    must_not: [survival, emergency, grid, stockpile, ration]
+    must_not: [survival, emergency, grid, stockpile, ration, library, "I can provide", "cannot verify"]
+
+  # Seen over the radio: preamble and a closing note about library passages.
+  - id: cookie-detailed
+    question: Give me a detailed recipe for chocolate chip cookies with all ingredients and steps.
+    must:
+      - [butter]
+      - [flour]
+      - [375, "350"]
+    must_not: [library, passage, "I can provide", "cannot verify"]
 
   - id: kid-gift
     question: What's a good gift for a 6 year old who likes dinosaurs?

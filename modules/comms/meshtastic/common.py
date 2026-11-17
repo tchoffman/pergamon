@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import ollama
 
 from rag.config import load_config
-from rag.domains import frame_question, guard
+from rag.domains import frame_question, guard, missing_warnings
 from rag.query import CONTEXT_HEADER, _format_source, build_context, relevant_hits, system_prompt
 
 # Meshtastic messages cap around 240 bytes of payload. Leave headroom for
@@ -52,10 +52,33 @@ class MeshReply:
 
 SHORT_HINT = (
     "\n\nRespond in at most 4 short sentences, plain text, no lists or markdown. "
+    "If they ask for a recipe or measurements, include the quantities. "
     "This reply goes over low-bandwidth mesh radio, so lead with the most "
-    "important point and never drop a critical safety step to save space."
+    "important point and never drop a critical safety step or warning to save space."
 )
 _CITES = re.compile(r"\s*\[\d+(?:,\s*\d+)*\]")
+
+# Sentences about where the answer came from waste airtime and read oddly
+# ("Check the library for the steps", "I can't verify this"). The model is
+# told not to write them; this catches the ones it writes anyway.
+_META = re.compile(r"\b(library|passages?|I can provide|I found (a|an|the|some)|"
+                   r"(can't|cannot|couldn't|unable to) (be )?verif\w*|"
+                   r"based on general \w*\s?knowledge)\b", re.I)
+_SENTENCE = re.compile(r"(?<=[.!?])\s+")
+_IN_LIBRARY = re.compile(r"\s+(in|from) (the|my|our) library\b", re.I)
+_FOUND = re.compile(r"^I found (a|an|the|some) ", re.I)
+
+
+def drop_meta(text: str, question: str = "") -> str:
+    """Remove sentences that talk about sources instead of answering, unless
+    the question was about them. Never empties an answer."""
+    if _META.search(question):
+        return text
+    # A sentence with numbers in it likely carries amounts or times: keep it.
+    kept = [x for x in _SENTENCE.split(text.strip()) if not _META.search(x) or re.search(r"\d", x)]
+    # In the sentences kept for their amounts, trim the sourcing words themselves.
+    kept = [_FOUND.sub(lambda m: m.group(1).capitalize() + " ", _IN_LIBRARY.sub("", x)) for x in kept]
+    return " ".join(kept) if kept else text
 
 
 def _ask_agent(question: str, cfg: dict, history: list[dict] | None = None) -> MeshReply:
@@ -65,7 +88,13 @@ def _ask_agent(question: str, cfg: dict, history: list[dict] | None = None) -> M
     text, run = agent.answer(question, cfg, is_host=False, extra_system=SHORT_HINT,
                              history=history)
     top = run.sources[0].split("  (")[0] if run.sources else None
-    return MeshReply(answer=_CITES.sub("", text).strip(), sources=[top] if top else [])
+    text = drop_meta(_CITES.sub("", text).strip(), question)
+    # Same window the safety check in agent._setup uses: this and the last two questions.
+    recent = " ".join([m["content"] for m in (history or []) if m["role"] == "user"][-2:] + [question])
+    warnings = missing_warnings(recent, text)
+    if warnings:
+        text = " ".join(warnings + [text])
+    return MeshReply(answer=text, sources=[top] if top else [])
 
 
 def ask(question: str, max_tokens_hint: int = 150, model: str | None = None,

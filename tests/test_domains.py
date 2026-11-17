@@ -111,3 +111,42 @@ def test_stiff_neck_fever_flags_meningitis():
 
 def test_facts_files_are_not_loaded_as_domains():
     assert not any(d.name.endswith("_facts") for d in load_domains())
+
+
+def test_missing_warning_added_only_when_the_answer_skips_it():
+    from rag.domains import missing_warnings
+    q = "I found some morels. How do I know they're safe?"
+    bad = "Check for a hollow, pitted cap. When in doubt, throw it out."
+    good = "Watch for false morels: slice them lengthwise."
+    assert missing_warnings(q, bad) and "Gyromitra" in missing_warnings(q, bad)[0]
+    assert missing_warnings(q, good) == []
+    assert missing_warnings("How do I bake bread?", bad) == []
+
+
+def test_every_safety_fact_has_a_radio_line_that_satisfies_itself():
+    from rag.domains import load_facts
+    for d in ("foraging", "medical", "food-safety"):
+        for f in load_facts(d):
+            assert f.get("must_mention") and f.get("radio"), f["id"]
+            assert any(m.lower() in f["radio"].lower() for m in f["must_mention"]), f["id"]
+            assert len(f["radio"].encode()) <= 120, f["id"]
+
+
+def test_radio_answer_gets_the_warning_first(monkeypatch):
+    from modules.comms.meshtastic import common
+    from rag import agent
+    monkeypatch.setattr(agent, "answer", lambda *a, **k: ("Check for a hollow cap.", agent.Run()))
+    r = common._ask_agent("Are these morels safe?", {"answer_mode": "agent"})
+    assert r.answer.startswith("Beware false morels (Gyromitra)") and r.answer.endswith("Check for a hollow cap.")
+
+
+def test_plural_keywords_trigger_their_domain():
+    from rag.domains import detect
+    for q in ("I found some morels", "copperheads in the yard", "are these mushrooms ok"):
+        assert detect(q), q
+
+
+def test_fact_triggers_switch_on_their_domain():
+    from rag.domains import detect
+    assert [d.name for d in detect("Is this puffball edible?")] == ["foraging"]
+    assert detect("How do I bake bread?") == []

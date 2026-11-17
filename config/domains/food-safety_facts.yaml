@@ -22,6 +22,9 @@ facts:
       Throw out refrigerated meat, poultry, fish, eggs, milk, and leftovers
       that have been above 40°F for more than 2 hours. Never taste food to
       decide whether it is safe.
+    # Radio answers are short; if one misses all of these, `radio` is put first.
+    must_mention: ["4 hours", "four hours"]
+    radio: "USDA, doors shut: a fridge keeps food safe about 4 hours; a full freezer ~48 h, half-full ~24 h."
 
   - id: canned-goods
     triggers:
@@ -34,3 +37,6 @@ facts:
       dented on a seam, spurts when opened, or smells off; it may carry
       botulism, which can be fatal in tiny amounts. Do not taste it. Low-acid
       foods (vegetables, meats) must be pressure-canned, not water-bath canned.
+    # Radio answers are short; if one misses all of these, `radio` is put first.
+    must_mention: ["botulism"]
+    radio: "Throw out bulging, leaking or spurting cans or jars; botulism can kill. Never taste to check."

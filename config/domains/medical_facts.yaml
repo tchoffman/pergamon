@@ -25,6 +25,9 @@ facts:
       bite, suck out venom, use a tourniquet, apply ice, or give alcohol.
       Older manuals that recommend cutting and suction are outdated; those
       methods cause harm.
+    # Radio answers are short; if one misses all of these, `radio` is put first.
+    must_mention: ["medical", "hospital", "911", "emergency"]
+    radio: "Get medical care fast; antivenom is the treatment. Don't cut, suck, ice or tourniquet the bite."
 
   - id: meningitis
     # Source: CDC meningitis symptoms guidance.
@@ -36,3 +39,6 @@ facts:
       or a rash that doesn't fade when pressed can be bacterial meningitis,
       which can kill within hours. Get emergency medical help immediately.
       People in close contact may need preventive antibiotics.
+    # Radio answers are short; if one misses all of these, `radio` is put first.
+    must_mention: ["emergency", "911", "immediately", "right away"]
+    radio: "Fever with a stiff neck can be meningitis: get emergency help now."

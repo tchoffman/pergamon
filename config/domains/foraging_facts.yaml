@@ -29,6 +29,9 @@ facts:
       start 6–24 hours after eating, often seem to improve, then liver failure
       follows. The cup is often buried: dig up the whole base before judging.
       Treat any mushroom with this pattern as deadly.
+    # Radio answers are short; if one misses all of these, `radio` is put first.
+    must_mention: ["amanita", "death cap", "destroying angel"]
+    radio: "Warning: white gills with a ring or a cup at the base is the deadly Amanita (death cap) pattern."
 
   - id: false-morel
     triggers:
@@ -39,6 +42,9 @@ facts:
       Slice lengthwise: a true morel is hollow in one continuous chamber from
       cap tip to stem base, and the cap is attached to the stem; false morels
       are cottony or chambered inside or have a cap hanging free like a skirt.
+    # Radio answers are short; if one misses all of these, `radio` is put first.
+    must_mention: ["false morel", "gyromitra"]
+    radio: "Beware false morels (Gyromitra), which can kill: slice lengthwise; a true morel is hollow from tip to base."
 
   - id: galerina
     triggers:
@@ -51,6 +57,9 @@ facts:
       Small brown mushrooms are among the hardest to identify, and Galerina
       marginata — common on rotting wood — contains the same liver-destroying
       toxins as the death cap. Do not eat little brown mushrooms.
+    # Radio answers are short; if one misses all of these, `radio` is put first.
+    must_mention: ["galerina"]
+    radio: "Don't eat little brown mushrooms: Galerina, common on wood, has death-cap toxins."
 
   - id: jack-o-lantern
     triggers:
@@ -62,6 +71,9 @@ facts:
       severe vomiting and diarrhea. Chanterelles have blunt, forked false
       ridges that run down the stem; jack-o'-lanterns have true, sharp,
       knife-like gills and usually grow in clusters from wood or buried roots.
+    # Radio answers are short; if one misses all of these, `radio` is put first.
+    must_mention: ["jack-o", "jack o", "omphalotus"]
+    radio: "Beware jack-o'-lanterns: sharp true gills, clusters on wood; chanterelles have blunt forked ridges."
 
   - id: puffball
     triggers:
@@ -70,6 +82,9 @@ facts:
       Slice every puffball top to bottom. It must be pure, uniform white
       inside like marshmallow. Any outline of a cap, gills, or stem means it is
       the young "egg" stage of a mushroom — possibly a deadly Amanita.
+    # Radio answers are short; if one misses all of these, `radio` is put first.
+    must_mention: ["slice", "cut it", "cut in half", "cut open", "cut each", "cut every"]
+    radio: "Slice every puffball top to bottom: pure white inside, no outline of a mushroom, or don't eat it."
 
   - id: hemlock
     triggers:
@@ -86,3 +101,6 @@ facts:
       has a smooth stem with purple blotches and a musty smell; Queen Anne's
       lace has a hairy stem. Never eat a wild plant from the carrot family
       without expert, in-person identification.
+    # Radio answers are short; if one misses all of these, `radio` is put first.
+    must_mention: ["hemlock"]
+    radio: "Warning: poison and water hemlock look like wild carrot and can kill; don't eat without in-person ID."

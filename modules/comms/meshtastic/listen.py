@@ -60,6 +60,10 @@ def _load_allowed_nodes() -> set[str]:
 
 ACK_TIMEOUT_S = 30
 ATTEMPTS = 3
+# Pause between parts of a reply. Sent the moment part 1's ack arrived, part 2
+# was lost on the air every time in tests (the receiver is still transmitting
+# just after acking), costing a 30 s timeout and a resend.
+PART_GAP_S = float(os.environ.get("PERGAMON_PART_GAP_S", "3"))
 
 
 def _send_confirmed(iface: Any, dest_id: str, text: str) -> bool:
@@ -91,6 +95,8 @@ def _reply(iface: Any, dest_id: str, reply):
     console.print(f"[dim]  → {len(chunks)} LoRa packet(s)[/dim]")
     console.print(f"[green]  {reply.answer}[/green]" + (f" [dim]({reply.sources[0]})[/dim]" if reply.sources else ""))
     for i, c in enumerate(chunks, 1):
+        if i > 1:
+            time.sleep(PART_GAP_S)
         if not _send_confirmed(iface, dest_id, c):
             console.print(f"[red]  giving up at part {i}/{len(chunks)}[/red]")
             return
