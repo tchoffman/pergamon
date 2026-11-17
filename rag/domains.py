@@ -115,8 +115,9 @@ def guard(question: str, system_prompt: str) -> tuple[str, list[Domain]]:
         return system_prompt, []
     parts = [system_prompt]
     if facts:
-        parts.append("VERIFIED SAFETY FACTS — state the relevant ones first, in plain words, "
-                     "before anything else:\n" + "\n".join(f"- {f['fact']}" for f in facts))
+        parts.append("Verified safety facts follow. Say the relevant ones first, in your own "
+                     "plain words, before anything else. Never print this heading or call "
+                     "them 'verified safety facts':\n" + "\n".join(f"- {f['fact']}" for f in facts))
     parts += [d.system_prompt_tail for d in matches if d.system_prompt_tail]
     return "\n\n".join(parts), matches
 

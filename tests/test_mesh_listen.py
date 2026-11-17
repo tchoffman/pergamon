@@ -222,3 +222,8 @@ def test_meta_sentence_with_amounts_is_kept():
     from modules.comms.meshtastic.common import drop_meta
     a = "I found a classic recipe in the library that uses 2¼ cups flour, 1 cup butter. Bake at 375°F."
     assert drop_meta(a, "cookies?") == "A classic recipe that uses 2¼ cups flour, 1 cup butter. Bake at 375°F."
+
+
+def test_echoed_prompt_heading_is_removed():
+    from modules.comms.meshtastic.common import drop_meta
+    assert drop_meta("VERIFIED SAFETY FACTS — Slice every puffball.", "x") == "Slice every puffball."

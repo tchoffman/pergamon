@@ -74,7 +74,7 @@ def test_no_fact_for_unrelated_question():
 def test_guard_puts_facts_before_rules():
     system, matches = guard("white gills and a ring, safe to eat?", "BASE")
     assert matches[0].name == "foraging"
-    assert system.index("VERIFIED SAFETY FACTS") < system.index("SAFETY RULES FOR THIS QUESTION")
+    assert system.index("Verified safety facts follow") < system.index("SAFETY RULES FOR THIS QUESTION")
     assert "death cap" in system
 
 

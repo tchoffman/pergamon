@@ -65,6 +65,7 @@ _META = re.compile(r"\b(library|passages?|I can provide|I found (a|an|the|some)|
                    r"(can't|cannot|couldn't|unable to) (be )?verif\w*|"
                    r"based on general \w*\s?knowledge)\b", re.I)
 _SENTENCE = re.compile(r"(?<=[.!?])\s+")
+_HEADING = re.compile(r"\b(verified )?safety facts\s*[—:–-]+\s*", re.I)  # a prompt label, echoed
 _IN_LIBRARY = re.compile(r"\s+(in|from) (the|my|our) library\b", re.I)
 _FOUND = re.compile(r"^I found (a|an|the|some) ", re.I)
 
@@ -72,6 +73,7 @@ _FOUND = re.compile(r"^I found (a|an|the|some) ", re.I)
 def drop_meta(text: str, question: str = "") -> str:
     """Remove sentences that talk about sources instead of answering, unless
     the question was about them. Never empties an answer."""
+    text = _HEADING.sub("", text)
     if _META.search(question):
         return text
     # A sentence with numbers in it likely carries amounts or times: keep it.
