@@ -286,19 +286,26 @@ def _stream_agent(request: Request, q: str, sid: str = ""):
 
     async def event_gen():
         answer_text: list[str] = []
+        ok = False
         try:
             async for kind, data in agent.astream(q, cfg, is_host=is_host, history=history):
                 if kind == "token":
                     answer_text.append(data)
                 yield {"event": kind, "data": data}
-            if key:
-                conversations.add(key, q, "".join(answer_text))
-            yield {"event": "done", "data": ""}
+            ok = True
         except Exception as e:
             print(f"[pergamon] answer failed: {e!r}", file=sys.stderr)
-            yield {"event": "failed", "data": "Sorry, the library couldn't answer just now."}
         finally:
+            # Runs before the page hears "done", and also when the page cut the
+            # answer short for a new question: remember what was said (a partial
+            # answer is still context) and free the device for its follow-up.
+            if key and answer_text:
+                conversations.add(key, q, "".join(answer_text))
             _gate.release(client)
+        if ok:
+            yield {"event": "done", "data": ""}
+        else:
+            yield {"event": "failed", "data": "Sorry, the library couldn't answer just now."}
 
     return EventSourceResponse(event_gen())
 
@@ -350,13 +357,16 @@ def _stream_rag(request: Request, q: str, system: str, user_prefix: str,
                 piece = chunk["message"]["content"]
                 if piece:
                     yield {"event": "token", "data": piece}
-
-            yield {"event": "done", "data": ""}
+            ok = True
         except Exception as e:
             print(f"[pergamon] answer failed: {e!r}", file=sys.stderr)
-            yield {"event": "failed", "data": "Sorry, the library couldn't answer just now."}
+            ok = False
         finally:
-            _gate.release(client)
+            _gate.release(client)  # before "done", so an immediate next question is admitted
+        if ok:
+            yield {"event": "done", "data": ""}
+        else:
+            yield {"event": "failed", "data": "Sorry, the library couldn't answer just now."}
 
     return EventSourceResponse(event_gen())
 

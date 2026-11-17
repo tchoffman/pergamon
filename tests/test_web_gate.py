@@ -103,3 +103,58 @@ def test_agent_mode_streams_tool_use_then_answer(client, monkeypatch):
 def _cfg():
     from rag.config import load_config
     return load_config()
+
+
+# ── follow-ups: the first answer must be remembered and the device free again ──
+
+def _request(ip="10.0.0.5"):
+    from starlette.requests import Request
+    return Request({"type": "http", "method": "GET", "path": "/ask", "headers": [],
+                    "query_string": b"", "client": (ip, 1234), "server": ("hub", 8090),
+                    "scheme": "http"})
+
+
+@pytest.fixture
+def agent_stream(monkeypatch):
+    from rag import agent
+    from rag.conversations import Conversations
+    import rag.conversations as conv
+    monkeypatch.setattr(web, "load_config", lambda: {**_cfg(), "answer_mode": "agent"})
+    monkeypatch.setattr(web, "_gate", ModelGate())
+    monkeypatch.setattr(web, "_is_host", lambda request: False)
+    monkeypatch.setattr(conv, "store", Conversations())
+
+    async def fake_astream(q, cfg, is_host=False, history=None):
+        for piece in ["Build ", "a ", "clay ", "dome."]:
+            yield "token", piece
+    monkeypatch.setattr(agent, "astream", fake_astream)
+    return conv
+
+
+def test_device_is_free_and_turn_saved_before_done_arrives(agent_stream):
+    import asyncio
+
+    async def run():
+        gen = web._stream_agent(_request(), "how do I build an oven", sid="tab1").body_iterator
+        async for ev in gen:
+            if ev["event"] == "done":
+                # the page sends its follow-up the instant it sees "done"
+                assert web._gate.in_flight == set()
+                assert agent_stream.store.history("web:10.0.0.5:tab1")[1]["content"] == "Build a clay dome."
+                return True
+    assert asyncio.run(run())
+
+
+def test_answer_cut_short_by_a_new_question_is_still_remembered(agent_stream):
+    import asyncio
+
+    async def run():
+        gen = web._stream_agent(_request(), "how do I build an oven", sid="tab1").body_iterator
+        await gen.__anext__()
+        await gen.__anext__()          # "Build a " arrived, then the page moved on
+        await gen.aclose()
+    asyncio.run(run())
+    hist = agent_stream.store.history("web:10.0.0.5:tab1")
+    assert hist[0]["content"] == "how do I build an oven"
+    assert hist[1]["content"].startswith("Build a")
+    assert web._gate.in_flight == set()

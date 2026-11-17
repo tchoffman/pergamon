@@ -117,6 +117,7 @@
       eventSource.addEventListener("done", () => {
         eventSource.close();
         eventSource = null;
+        sendQueued();
       });
 
       eventSource.addEventListener("failed", (ev) => {
@@ -126,6 +127,7 @@
         answer.insertBefore(p, answerBody);
         eventSource.close();
         eventSource = null;
+        sendQueued();
       });
 
       eventSource.onerror = () => {
@@ -133,6 +135,7 @@
           eventSource.close();
           eventSource = null;
         }
+        sendQueued();
       };
     }
 
@@ -175,10 +178,32 @@
       input.focus();
     });
 
+    // A question typed while an answer is still arriving waits for it, so the
+    // first answer isn't cut off and the follow-up is read with it.
+    let queued = null;
+    const queuedNote = document.createElement("p");
+    queuedNote.className = "muted small hidden";
+    form.after(queuedNote);
+    function sendQueued() {
+      if (queued === null) return;
+      const q = queued;
+      queued = null;
+      queuedNote.classList.add("hidden");
+      input.value = q;
+      form.requestSubmit();
+    }
+
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       const q = input.value.trim();
       if (!q) return;
+      if (eventSource) {
+        queued = q;
+        input.value = "";
+        queuedNote.textContent = "Next: “" + q + "” (sent when this answer finishes)";
+        queuedNote.classList.remove("hidden");
+        return;
+      }
 
       archiveCurrent();
       lastQ = q;
