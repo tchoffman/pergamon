@@ -76,11 +76,13 @@ models:
       size_mb: 670
       dim: 1024
       notes: Higher quality. 1024-dim — reindex required if you switch.
-    - id: bge-base
-      ollama_tag: bge-base-en-v1.5
-      size_mb: 280
-      dim: 768
-      notes: BGE alternative. 768-dim; strong on technical queries.
+    - id: bge-m3
+      ollama_tag: bge-m3
+      size_mb: 1200
+      dim: 1024
+      notes: >-
+        BGE M3. Multilingual (100+ languages), 1024-dim; reindex required if
+        you switch. Ollama has no base-size BGE model.
 
 items:
 
@@ -247,9 +249,9 @@ items:
     fetcher: kiwix-zim
     description: Wiki of appropriate-tech / DIY sustainability projects.
     kiwix:
-      project: appropedia
+      project: other
       prefix_by_variant:
-        all: appropedia_en_all_
+        all: appropedia_en_all_maxi_
     options: []
     defaults:
       variant: all
@@ -264,37 +266,30 @@ items:
     kiwix:
       project: other
       prefix_by_variant:
-        all: archlinux_en_all_nopic_
+        all: archlinux_en_all_maxi_
     options: []
     defaults:
       variant: all
     size_mb_by_variant:
-      all: 2000
+      all: 40
 
   # ── Education ───────────────────────────────────────────────────────
   - id: khan-academy
     title: Khan Academy
     shelf: education
     fetcher: kiwix-zim
-    description: K–12 courses (math, science, humanities).
+    description: >-
+      K–12 courses (math, science, humanities), with video. Kiwix only offers
+      the full English set (2023, ~168 GB); there is no smaller edition.
     kiwix:
       project: other
       prefix_by_variant:
-        core: khanacademy_en_core_
-        all:  khanacademy_en_all_
-    options:
-      - name: variant
-        prompt: "Khan Academy scope?"
-        choices:
-          - value: core
-            label: "Core subjects only — ~5 GB"
-          - value: all
-            label: "All subjects — ~90 GB"
+        all: khanacademy_en_all_
+    options: []
     defaults:
-      variant: core
+      variant: all
     size_mb_by_variant:
-      core: 5000
-      all: 90000
+      all: 172000
 
   # ── Classics / Morale ───────────────────────────────────────────────
   - id: gutenberg
@@ -329,7 +324,9 @@ items:
     fetcher: mirror-site
     description: Beautifully-formatted public-domain classics.
     mirror:
-      seed_url: https://standardebooks.org/opds/all
+      # The OPDS feed (/opds/all) now needs a Patrons Circle login; the
+      # public catalog pages don't.
+      seed_url: https://standardebooks.org/ebooks
       allowed_hosts: ["standardebooks.org"]
     options: []
     defaults: {}
@@ -371,14 +368,10 @@ items:
             label: "Chemistry (~400 MB)"
           - value: physics
             label: "Physics (~1 GB)"
-          - value: medicalsciences
-            label: "Medical Sciences (~100 MB)"
           - value: ham
             label: "Amateur Radio (~80 MB)"
           - value: aviation
             label: "Aviation (~400 MB)"
-          - value: boating
-            label: "Boating & Nautical (~30 MB)"
           - value: mechanics
             label: "Motor Vehicle Maintenance (~200 MB)"
     defaults:
@@ -498,7 +491,7 @@ items:
       - name: regions
         prompt: "Which regions? (comma-separated OsmAnd region codes)"
         type: string
-        placeholder: "us-northcarolina,us-georgia"
+        placeholder: "us-georgia,us-north-carolina,germany-berlin"
     defaults:
       regions: []
     # Size varies; typically 300-800 MB per US state

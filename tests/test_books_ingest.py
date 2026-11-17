@@ -25,7 +25,7 @@ def test_extract_txt_plain_file_untouched(tmp_path):
 
 
 def test_corpus_documents_includes_books_and_pdfs(tmp_path, monkeypatch):
-    monkeypatch.setattr(ingest, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("PERGAMON_SANDBOX", str(tmp_path / "build"))
     (tmp_path / "build/corpus/pdfs").mkdir(parents=True)
     (tmp_path / "build/corpus/books").mkdir(parents=True)
     (tmp_path / "build/corpus/pdfs/a.pdf").write_bytes(b"%PDF")

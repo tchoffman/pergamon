@@ -9,6 +9,7 @@ Fetchers consume the effective config.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,8 @@ CONFIG_DIR = REPO_ROOT / "config"
 CATALOG_PATH = CONFIG_DIR / "catalog.yaml"
 INSTALL_PATH = CONFIG_DIR / "install.yaml"
 INSTALL_LOCAL_PATH = CONFIG_DIR / "install.local.yaml"
+if os.environ.get("PERGAMON_SANDBOX"):  # an install test run keeps its own choices
+    INSTALL_LOCAL_PATH = Path(os.environ["PERGAMON_SANDBOX"]) / "install.local.yaml"
 PRESETS_DIR = CONFIG_DIR / "presets"
 SERVICES_CATALOG_PATH = REPO_ROOT / "services" / "catalog.yaml"
 

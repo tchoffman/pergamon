@@ -6,6 +6,7 @@ Embeddings are computed via Ollama's embed endpoint.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import sys
 from pathlib import Path
@@ -78,8 +79,9 @@ def extract_txt(path: Path) -> str:
 def corpus_documents() -> list[tuple[Path, callable]]:
     """Every indexable document: PDFs and plain-text books."""
     docs: list[tuple[Path, callable]] = []
-    pdf_dir = REPO_ROOT / "build" / "corpus" / "pdfs"
-    book_dir = REPO_ROOT / "build" / "corpus" / "books"
+    from rag.sandbox import data_dir
+    pdf_dir = data_dir() / "corpus" / "pdfs"
+    book_dir = data_dir() / "corpus" / "books"
     if pdf_dir.exists():
         docs += [(p, extract_pdf) for p in sorted(pdf_dir.glob("*.pdf"))]
     if book_dir.exists():
@@ -116,11 +118,17 @@ def main() -> int:
         console=console,
     ) as progress:
         for pdf, extract in docs:
-            text = extract(pdf)
+            try:
+                text = extract(pdf)
+            except Exception as e:  # noqa: BLE001 — one damaged file shouldn't stop the rest
+                console.print(f"[yellow]skip[/yellow] {pdf.name}: can't read it ({e.__class__.__name__})")
+                continue
             if not text.strip():
                 console.print(f"[yellow]skip[/yellow] {pdf.name}: no extractable text")
                 continue
             chunks = list(chunk_text(text, cfg["chunk_size"], cfg["chunk_overlap"]))
+            if os.environ.get("INGEST_MAX_CHUNKS"):  # install test runs index a sample
+                chunks = chunks[:int(os.environ["INGEST_MAX_CHUNKS"])]
             task = progress.add_task(f"[cyan]{pdf.name}", total=len(chunks))
             batch_ids: list[str] = []
             batch_docs: list[str] = []

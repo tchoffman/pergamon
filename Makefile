@@ -1,4 +1,4 @@
-.PHONY: e2e help all deps models corpus index venv clean status serve ask setup plan smoke-test test check-urls
+.PHONY: test-install e2e help all deps models corpus index venv clean status serve ask setup plan smoke-test test check-urls
 
 SHELL := /bin/bash
 BUILD_DIR := build
@@ -24,6 +24,7 @@ help:
 	@echo "  make test       — run unit tests (config logic, no network)"
 	@echo "  make check-urls — HEAD-request every URL in the plan (catches dead links)"
 	@echo "  make smoke-test — run end-to-end validation"
+	@echo "  make test-install — quick install test run in build/test-install (ARGS=--choose | --everything)"
 	@echo "  make e2e        — drive the web pages in headless Chrome (two users)"
 	@echo "  make clean      — wipe build/ (redownload everything)"
 	@echo ""
@@ -69,6 +70,9 @@ plan: venv
 
 test: venv
 	@$(PY) -m pytest tests/ -v
+
+test-install: venv
+	@scripts/test-install.sh $(ARGS)
 
 check-urls: venv
 	@scripts/check-urls.sh

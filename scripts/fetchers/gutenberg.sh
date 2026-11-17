@@ -19,19 +19,21 @@
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 TOP_N="${GUTENBERG_TOP_N:-100}"
+[[ "$TEST_MODE" == 1 && "$TOP_N" -gt 2 ]] && TOP_N=2  # install test: two books prove it
 
 # Produce a list of (id, slug) pairs for the top N books.
 if [[ -n "${GUTENBERG_IDS:-}" ]]; then
   log "fetching curated Gutenberg list into $BOOK_DIR"
   : > /tmp/pergamon-gutenberg-list.tsv
   IFS=',' read -r -a entries <<< "$GUTENBERG_IDS"
+  [[ "$TEST_MODE" == 1 ]] && entries=("${entries[@]:0:2}")
   for e in "${entries[@]}"; do
     id="${e%%:*}"; slug="${e#*:}"; [[ "$slug" == "$e" ]] && slug="book$id"
     printf '%s\t%s\n' "$id" "$slug" >> /tmp/pergamon-gutenberg-list.tsv
   done
 else
 log "fetching top $TOP_N Gutenberg books into $BOOK_DIR"
-"$PY" - <<PY > /tmp/pergamon-gutenberg-list.tsv
+"$PY" - <<PY > /tmp/pergamon-gutenberg-list.tsv || { record FAIL download gutenberg "the top-books list on gutenberg.org did not load"; exit 1; }
 import urllib.request, re, sys, html
 
 def get(url):
@@ -102,15 +104,26 @@ while IFS=$'\t' read -r bid slug; do
   # Gutenberg mirrors plain text at /files/<id>/<id>-0.txt (UTF-8) or /files/<id>/<id>.txt.
   for url in "https://www.gutenberg.org/cache/epub/${bid}/pg${bid}.txt" \
              "https://www.gutenberg.org/files/${bid}/${bid}-0.txt" \
-             "https://www.gutenberg.org/files/${bid}/${bid}.txt"; do
-    if curl -sL --fail --retry 2 --max-time 120 -o "$out" "$url"; then
+             "https://www.gutenberg.org/files/${bid}/${bid}.txt" \
+             "https://gutenberg.pglaf.org/cache/epub/${bid}/pg${bid}.txt"; do  # official mirror; up when the main site isn't
+    if [[ "$TEST_MODE" == 1 ]]; then
+      if FETCH_RECORD=0 fetch_sample "$url" "$out"; then
+        count=$((count + 1)); got_url="$url"
+        break
+      fi
+    elif curl -sL --fail --retry 2 --max-time 120 -o "$out" "$url"; then
       count=$((count + 1))
       break
     fi
     rm -f "$out"
   done
+  if [[ "$TEST_MODE" == 1 ]]; then
+    if [[ -s "$out" ]]; then record PASS download "gutenberg #$bid" "$got_url"
+    else record FAIL download "gutenberg #$bid" "no mirror URL worked"; fi
+  fi
 done < /tmp/pergamon-gutenberg-list.tsv
 
 rm -f /tmp/pergamon-gutenberg-list.tsv
 
+[[ "$TEST_MODE" == 1 && "$count" -eq 0 ]] && record FAIL download gutenberg "no books found (list page changed?)"
 ok "gutenberg: $count books under $BOOK_DIR"

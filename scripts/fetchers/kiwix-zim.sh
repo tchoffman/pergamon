@@ -19,7 +19,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 out="$ZIM_DIR/${OUTPUT_NAME}.zim"
 
 log "resolving latest kiwix://$KIWIX_PROJECT/$KIWIX_PREFIX*.zim"
-latest_file="$("$PY" - <<PY
+latest_file="$("$PY" - <<PY || true
 import urllib.request, re, sys
 url = "https://download.kiwix.org/zim/${KIWIX_PROJECT}/"
 try:
@@ -33,7 +33,8 @@ PY
 )"
 
 if [[ -z "$latest_file" ]]; then
-  err "no files matched $KIWIX_PREFIX under /zim/$KIWIX_PROJECT/"
+  err "no files matched $KIWIX_PREFIX under /zim/$KIWIX_PROJECT/ (or the listing couldn't be read)"
+  record FAIL download "${PERGAMON_ITEM:-$OUTPUT_NAME}" "no file named $KIWIX_PREFIX* in kiwix /zim/$KIWIX_PROJECT/ (or that folder doesn't exist)"
   exit 1
 fi
 

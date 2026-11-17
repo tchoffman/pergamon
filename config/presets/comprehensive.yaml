@@ -22,8 +22,7 @@ enable:
   ifixit: {}
   appropedia: {}
   arch-wiki: {}
-  khan-academy:
-    variant: core
+  # khan-academy: the only English edition is ~168 GB; pick it in setup if you want it
   gutenberg:
     top_n: 2000
   standard-ebooks: {}
@@ -42,7 +41,6 @@ enable:
       - chemistry
       - ham
       - mechanics
-      - medicalsciences
   low-tech-magazine: {}
   tldp: {}
   meshtastic-docs: {}

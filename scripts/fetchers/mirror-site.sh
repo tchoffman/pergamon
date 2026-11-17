@@ -46,6 +46,9 @@ args=(
   --no-verbose
   --directory-prefix="$dest"
 )
+if [[ "$TEST_MODE" == 1 ]]; then
+  args=("${args[@]/--level=$DEPTH/--level=1}" --quota=1m)  # install test: the front page and a few links
+fi
 if [[ -n "$HOSTS" ]]; then
   args+=( --domains="$HOSTS" )
 fi
@@ -53,3 +56,8 @@ fi
 log "mirroring $MIRROR_URL into $dest (depth $DEPTH)"
 wget "${args[@]}" "$MIRROR_URL" || warn "wget returned non-zero; partial mirror kept"
 ok "mirror $(basename "$dest") — $(du -sh "$dest" 2>/dev/null | cut -f1)"
+if [[ "$TEST_MODE" == 1 ]]; then
+  pages="$(find "$dest" -type f -name '*.htm*' | wc -l | tr -d ' ')"
+  if [[ "$pages" -gt 0 ]]; then record PASS download "$OUTPUT_NAME" "$pages pages mirrored (depth 1) · $MIRROR_URL"
+  else record FAIL download "$OUTPUT_NAME" "no pages mirrored · $MIRROR_URL"; fi
+fi

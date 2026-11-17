@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import yaml
 
@@ -16,6 +17,8 @@ def load_config(path: str | Path | None = None) -> dict:
     for key in ("chroma_dir",):
         if key in cfg and not Path(cfg[key]).is_absolute():
             cfg[key] = str(REPO_ROOT / cfg[key])
+    if os.environ.get("PERGAMON_SANDBOX"):  # install test run: its own index
+        cfg["chroma_dir"] = str(Path(os.environ["PERGAMON_SANDBOX"]) / "chroma")
 
     # Model override from install config. Deferred import to avoid a cycle.
     try:

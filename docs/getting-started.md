@@ -70,6 +70,22 @@ it's yours alone and won't follow the repo around.
 **Don't want to run setup?** Skip it. Everything below uses the `default`
 preset, which is fine.
 
+**Want to test-drive the install first?** A test run does every install step
+in a throwaway folder (`build/test-install/`) in a few minutes:
+
+```bash
+make test-install                     # what your config would install
+make test-install ARGS=--choose       # pick in the setup menu first
+make test-install ARGS=--everything   # every item, variant, model and service
+```
+
+Each download stops after its first 2 MB (`TEST_BYTES` changes that) and is
+checked to be the right kind of file. Models and service images are looked
+up in their registries instead of downloaded. A 1 MB library is downloaded
+whole, indexed and searched to prove that part works. It ends with a
+pass/fail line for every download link, model and image. Your real
+`config/install.local.yaml`, downloads and index are not touched.
+
 ## Step 3 — Build the pergamon
 
 ```bash

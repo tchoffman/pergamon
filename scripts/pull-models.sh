@@ -56,6 +56,14 @@ if [[ ${#MODELS[@]} -eq 0 ]]; then
   exit 1
 fi
 
+if [[ "${PERGAMON_TEST_INSTALL:-0}" == 1 ]]; then
+  # Install test: confirm each model exists in the Ollama registry and report
+  # its size, without the multi-gigabyte download.
+  echo "==> Checking ${#MODELS[@]} model(s) in the Ollama registry (test run: not pulling)"
+  "$PY" -m rag.model_check "${MODELS[@]}"
+  exit $?
+fi
+
 echo "==> Pulling ${#MODELS[@]} model(s) via Ollama"
 for m in "${MODELS[@]}"; do
   echo "  [+] ollama pull $m"

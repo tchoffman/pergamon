@@ -125,8 +125,12 @@ while IFS=$'\t' read -r fetcher item size envs; do
   for p in "${parts[@]}"; do
     env_assignments+=("$p")
   done
-  env "${env_assignments[@]}" "scripts/fetchers/${fetcher}.sh" || {
+  env "${env_assignments[@]}" PERGAMON_ITEM="$item" "scripts/fetchers/${fetcher}.sh" || {
+    rc=$?
     echo "    !! $item failed; continuing"
+    if [[ -n "${PERGAMON_SANDBOX:-}" ]]; then
+      printf 'FAIL\tdownload\t%s\tfetcher %s exited %s\n' "$item" "$fetcher" "$rc" >> "$PERGAMON_SANDBOX/results.tsv"
+    fi
   }
 done <<< "$PLAN"
 
