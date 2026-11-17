@@ -19,6 +19,7 @@ if [[ ! -x build/venv/bin/python ]]; then
   exit 1
 fi
 PY=build/venv/bin/python
+DATA="$("$PY" -m rag.storage path)" || exit 1  # stops if the library's drive is unplugged
 
 # Produce a tab-separated plan: fetcher<TAB>env1=val1;env2=val2
 PLAN="$(
@@ -108,7 +109,7 @@ if [[ -z "$PLAN" ]]; then
   exit 0
 fi
 
-echo "==> Fetch plan"
+echo "==> Fetch plan (into $DATA)"
 printf "  %-18s %-28s %s\n" "fetcher" "item" "size"
 printf "  %-18s %-28s %s\n" "------"  "----"  "----"
 while IFS=$'\t' read -r fetcher item size envs; do

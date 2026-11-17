@@ -18,6 +18,7 @@ from pypdf import PdfReader
 from rich.console import Console
 from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
 
+from rag.storage import chroma_client
 from rag.config import REPO_ROOT, load_config
 
 console = Console()
@@ -79,7 +80,7 @@ def extract_txt(path: Path) -> str:
 def corpus_documents() -> list[tuple[Path, callable]]:
     """Every indexable document: PDFs and plain-text books."""
     docs: list[tuple[Path, callable]] = []
-    from rag.sandbox import data_dir
+    from rag.storage import data_dir
     pdf_dir = data_dir() / "corpus" / "pdfs"
     book_dir = data_dir() / "corpus" / "books"
     if pdf_dir.exists():
@@ -98,11 +99,11 @@ def main() -> int:
     cfg = load_config()
     docs = corpus_documents()
     if not docs:
-        console.print("[yellow]No PDFs or books under build/corpus. Run `make corpus` first.[/yellow]")
+        console.print("[yellow]No PDFs or books in the library yet. Run `make corpus` first.[/yellow]")
         return 0
-    console.print(f"Found [bold]{len(docs)}[/bold] document(s) under build/corpus")
+    console.print(f"Found [bold]{len(docs)}[/bold] document(s) in the library")
 
-    client_chroma = chromadb.PersistentClient(path=cfg["chroma_dir"])
+    client_chroma = chroma_client(cfg)
     coll = client_chroma.get_or_create_collection(cfg["chroma_collection"])
     existing_ids = set(coll.get(include=[])["ids"])
     console.print(f"Chroma collection [bold]{cfg['chroma_collection']}[/bold] has {len(existing_ids)} chunks already.")

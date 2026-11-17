@@ -70,6 +70,21 @@ it's yours alone and won't follow the repo around.
 **Don't want to run setup?** Skip it. Everything below uses the `default`
 preset, which is fine.
 
+**Short on disk space?** Keep the library on an external drive. Setup asks
+where the library should live and shows each disk's free space. Or do it
+yourself:
+
+```bash
+bin/pergamon storage                                   # where it is now, and sizes
+bin/pergamon storage drives                            # disks you could use
+bin/pergamon storage use /Volumes/MyDrive/pergamon --move   # copy it over and switch
+```
+
+Downloads and the search index move; the program stays put. The old copy
+is kept until you delete it. If the drive is unplugged, installs stop with a
+message, and answers still work, just without the library. Format the drive
+exFAT or APFS: FAT32 can't hold files over 4 GB.
+
 **Want to test-drive the install first?** A test run does every install step
 in a throwaway folder (`build/test-install/`) in a few minutes:
 

@@ -25,6 +25,7 @@ from rich.progress import (
     BarColumn, Progress, TextColumn, TimeElapsedColumn, TimeRemainingColumn,
 )
 
+from rag.storage import chroma_client
 from rag.config import REPO_ROOT, load_config
 from rag.ingest import chunk_text
 
@@ -162,7 +163,7 @@ def main(argv: list[str]) -> int:
     limit_env = os.environ.get("ZIM_LIMIT")
     limit = int(limit_env) if limit_env else None
 
-    client_chroma = chromadb.PersistentClient(path=cfg["chroma_dir"])
+    client_chroma = chroma_client(cfg)
     coll = client_chroma.get_or_create_collection(cfg["chroma_collection"])
 
     client_ollama = ollama.Client(host=cfg["ollama_host"])

@@ -17,8 +17,15 @@ def load_config(path: str | Path | None = None) -> dict:
     for key in ("chroma_dir",):
         if key in cfg and not Path(cfg[key]).is_absolute():
             cfg[key] = str(REPO_ROOT / cfg[key])
-    if os.environ.get("PERGAMON_SANDBOX"):  # install test run: its own index
-        cfg["chroma_dir"] = str(Path(os.environ["PERGAMON_SANDBOX"]) / "chroma")
+    # The index lives with the rest of the library: a sandbox, or a configured
+    # data drive (rag/storage.py). An unplugged drive is reported when used.
+    try:
+        from rag.storage import DEFAULT, data_dir
+        d = data_dir(check=False)
+        if d != DEFAULT:
+            cfg["chroma_dir"] = str(d / "chroma")
+    except Exception:
+        pass
 
     # Model override from install config. Deferred import to avoid a cycle.
     try:

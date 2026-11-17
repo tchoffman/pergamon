@@ -11,6 +11,8 @@ if [[ ! -x "$VENV_PY" ]]; then
 fi
 
 # Ensure ollama server is up — ingest will hammer the embed endpoint.
+"$VENV_PY" -m rag.storage path >/dev/null || exit 1  # stops if the library's drive is unplugged
+
 if ! curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
   echo "==> Starting Ollama server"
   (nohup ollama serve >/dev/null 2>&1 &) || true

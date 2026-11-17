@@ -24,8 +24,9 @@ def test_mode() -> bool:
 
 
 def data_dir() -> Path:
-    """The folder holding corpus/ and chroma/: build/, or the sandbox."""
-    return sandbox() or REPO_ROOT / "build"
+    """The folder holding corpus/ and chroma/ (see rag/storage.py)."""
+    from rag.storage import data_dir as _data_dir
+    return _data_dir()
 
 
 def record(status: str, step: str, item: str, detail: str = "") -> None:

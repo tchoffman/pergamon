@@ -8,6 +8,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
+from rag.storage import chroma_client
 from rag.config import REPO_ROOT, load_config
 
 console = Console()
@@ -43,7 +44,7 @@ def ollama_models(host: str) -> list[str]:
 def chroma_count(cfg: dict) -> int:
     try:
         import chromadb
-        c = chromadb.PersistentClient(path=cfg["chroma_dir"])
+        c = chroma_client(cfg)
         coll = c.get_or_create_collection(cfg["chroma_collection"])
         return coll.count()
     except Exception:
@@ -74,8 +75,9 @@ def main() -> int:
     else:
         table.add_row("ollama models", "[yellow]none (server down or no models)[/yellow]")
 
-    zim_dir = REPO_ROOT / "build" / "corpus" / "zims"
-    pdf_dir = REPO_ROOT / "build" / "corpus" / "pdfs"
+    from rag.storage import data_dir
+    zim_dir = data_dir(check=False) / "corpus" / "zims"
+    pdf_dir = data_dir(check=False) / "corpus" / "pdfs"
     zims = list(zim_dir.glob("*.zim")) if zim_dir.exists() else []
     pdfs = list(pdf_dir.glob("*.pdf")) if pdf_dir.exists() else []
     table.add_row("ZIMs", f"{len(zims)} file(s), {dir_size_mb(zim_dir)} MB")

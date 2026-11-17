@@ -9,6 +9,7 @@ Modules (comms, services) will plug in here later — see the MODULES list.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Any
 
 import questionary
@@ -224,6 +225,35 @@ def _prompt_services(current: dict) -> dict:
     return {sid: {} for sid in picks}
 
 
+def _planned_mb(catalog: dict, enable: dict) -> int:
+    return sum(item_size_mb(catalog[i], o or {}) or 0 for i, o in enable.items() if i in catalog)
+
+
+def _prompt_storage(planned_mb: int) -> Path | None:
+    """Ask where the library should live. Returns a new folder, or None to keep it."""
+    from rag import storage
+    current = storage.data_dir(check=False)
+    need = planned_mb * 1_000_000
+    choices = []
+    for d in storage.drives():
+        fits = "" if d["free"] > need else "  [too small]"
+        here = "  (current)" if d["path"].resolve() == current.resolve() else ""
+        choices.append(Choice(f"{d['label']} — {d['free'] / 1e9:.0f} GB free{fits}{here}", value=d["path"]))
+    choices.append(Choice("Another folder…", value="__other__"))
+    console.print(Rule("Storage"))
+    console.print(f"This install needs about [bold]{_format_mb(planned_mb)}[/bold]. "
+                  "An external drive works well for big libraries.")
+    pick = questionary.select("Where should the library live?", choices=choices,
+                              default=next((c for c in choices if c.value != "__other__"
+                                            and c.value.resolve() == current.resolve()), None)).ask()
+    if pick == "__other__":
+        typed = questionary.text("Folder (it will be created):").ask()
+        pick = Path(typed).expanduser() if typed else None
+    if not pick or Path(pick).resolve() == current.resolve():
+        return None
+    return Path(pick)
+
+
 def diff_from_preset(preset_enable: dict, chosen_enable: dict) -> dict:
     """Compute the minimal `overrides:` block that transforms preset_enable
     into chosen_enable. Removed items are mapped to None so the merge logic
@@ -287,8 +317,12 @@ def main() -> int:
     starting_services = current.get("services") or base.get("services") or {}
     chosen_services = _prompt_services(starting_services)
 
+    new_storage = _prompt_storage(_planned_mb(catalog, chosen_enable))
+
     # Show summary and confirm.
     console.print(_summary_table(catalog, chosen_enable))
+    if new_storage:
+        console.print(f"[dim]library folder:[/dim] [cyan]{new_storage}[/cyan]")
     if chosen_models:
         console.print(
             f"[dim]models:[/dim] primary=[cyan]{chosen_models.get('primary','?')}[/cyan] "
@@ -316,6 +350,13 @@ def main() -> int:
         save_local_config(profile, models=model_overrides, services=chosen_services)
 
     console.print(f"[green]Saved to[/green] config/install.local.yaml")
+    if new_storage:
+        from rag import storage
+        has_data = any((storage.data_dir(check=False) / s).exists() for s in storage.SUBDIRS)
+        move = has_data and questionary.confirm(
+            "Copy your existing library to the new folder? (the old copy is kept)", default=True).ask()
+        if storage.use(new_storage, move=bool(move)) != 0:
+            console.print("[red]Library folder not changed.[/red]")
     console.print("\nNext steps:")
     console.print("  [cyan]make corpus[/cyan]    # download selected items")
     console.print("  [cyan]make index[/cyan]     # embed any new PDFs")

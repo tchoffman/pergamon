@@ -27,6 +27,7 @@ from sse_starlette.sse import EventSourceResponse
 from fastapi import HTTPException
 
 from rag import situation as _situation
+from rag.storage import chroma_client
 from rag.config import REPO_ROOT, load_config
 from rag.domains import frame_question, guard
 from rag.identity import (
@@ -61,7 +62,8 @@ _cfg = load_config()
 
 def _zim_list() -> list[dict]:
     """ZIMs available for browse (links go to the kiwix-serve process)."""
-    zim_dir = REPO_ROOT / "build" / "corpus" / "zims"
+    from rag.storage import data_dir
+    zim_dir = data_dir(check=False) / "corpus" / "zims"
     if not zim_dir.exists():
         return []
     out = []
@@ -75,7 +77,7 @@ def _status() -> dict:
     """Light status pulled from the current state."""
     cfg = load_config()
     try:
-        c = chromadb.PersistentClient(path=cfg["chroma_dir"])
+        c = chroma_client(cfg)
         chunks = c.get_or_create_collection(cfg["chroma_collection"]).count()
     except Exception:
         chunks = -1

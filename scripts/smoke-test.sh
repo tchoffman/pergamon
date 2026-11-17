@@ -30,14 +30,16 @@ if ! curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
   sleep 2
 fi
 models="$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' || true)"
-echo "$models" | grep -qi "llama3" || fail "LLM model not pulled — run 'make models'"
+llm="$(build/venv/bin/python -c 'from rag.config import load_config; print(load_config()["llm_model"])')"
+echo "$models" | grep -qxF "$llm" || fail "LLM model $llm not pulled — run 'make models'"
 pass "LLM model present"
 echo "$models" | grep -qi "nomic-embed" || fail "embedding model not pulled"
 pass "embedding model present"
 
 hdr "3. Corpus"
-pdf_count="$(find build/corpus/pdfs -name '*.pdf' 2>/dev/null | wc -l | tr -d ' ')"
-zim_count="$(find build/corpus/zims -name '*.zim' 2>/dev/null | wc -l | tr -d ' ')"
+data="$(build/venv/bin/python -m rag.storage path)" || fail "library drive not connected"
+pdf_count="$(find "$data/corpus/pdfs" -name '*.pdf' 2>/dev/null | wc -l | tr -d ' ')"
+zim_count="$(find "$data/corpus/zims" -name '*.zim' 2>/dev/null | wc -l | tr -d ' ')"
 if [[ "$pdf_count" -eq 0 && "$zim_count" -eq 0 ]]; then
   fail "no corpus files at all — run 'make corpus'"
 fi
@@ -48,7 +50,8 @@ chunk_count="$("$PY" - <<'PY'
 import chromadb, sys
 from rag.config import load_config
 cfg = load_config()
-c = chromadb.PersistentClient(path=cfg["chroma_dir"])
+from rag.storage import chroma_client
+c = chroma_client(cfg)
 try:
     coll = c.get_collection(cfg["chroma_collection"])
     print(coll.count())

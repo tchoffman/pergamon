@@ -110,12 +110,19 @@ class Run:
     """What happened while answering: which tools ran, which sources were used."""
     tool_calls: list[tuple[str, dict]] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
+    notices: list[str] = field(default_factory=list)  # e.g. the library drive is unplugged
 
 
 def _search_library(cfg: dict, run: Run) -> Callable[[str], str]:
     def search_library(query: str) -> str:
+        from rag.storage import StorageMissing
         limit = cfg.get("max_distance")
-        hits = [h for h in retrieve(cfg, query) if limit is None or h["dist"] <= limit][:4]
+        try:
+            hits = [h for h in retrieve(cfg, query) if limit is None or h["dist"] <= limit][:4]
+        except StorageMissing:
+            # The library's drive is unplugged: still answer, just without it.
+            run.notices.append("The library drive isn't connected, so this answer doesn't use it.")
+            return "The library is unavailable right now. Answer fully from your own knowledge."
         if not hits:
             return ("No library passages matched. Answer fully from your own knowledge; "
                     "don't mention the library.")
@@ -308,8 +315,10 @@ async def astream(question: str, cfg: dict, *, is_host: bool = True, extra_syste
             name, args = c["function"]["name"], _args(c)
             run.tool_calls.append((name, args))
             yield ("tool", f"{name}({', '.join(str(v) for v in args.values())})")
-            before = len(run.sources)
+            before, notes = len(run.sources), len(run.notices)
             result = await asyncio.to_thread(_call, fns, name, args)
+            for n in run.notices[notes:]:
+                yield ("notice", n)
             for i, s in enumerate(run.sources[before:], before + 1):
                 yield ("source", f"[{i}] {s}")
             messages.append({"role": "tool", "tool_name": name, "content": result})

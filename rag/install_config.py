@@ -111,8 +111,12 @@ def save_local_config(
     models: dict | None = None,
     services: dict | None = None,
 ) -> None:
-    """Write config/install.local.yaml."""
-    data: dict = {"preset": preset_name}
+    """Write the install choices to config/install.local.yaml, keeping every
+    other setting in it (location, radio allowlist, hub, storage, ...)."""
+    data = load_yaml(INSTALL_LOCAL_PATH) if INSTALL_LOCAL_PATH.exists() else {}
+    for key in ("preset", "overrides", "models", "services"):
+        data.pop(key, None)
+    data = {"preset": preset_name, **data}
     if overrides:
         data["overrides"] = overrides
     if models:

@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.rule import Rule
 
+from rag.storage import chroma_client
 from rag.config import load_config
 from rag.domains import frame_question, guard
 
@@ -56,7 +57,7 @@ CONTEXT_HEADER ="LIBRARY EXCERPTS (use to check and add detail; ignore any that 
 
 
 def retrieve(cfg: dict, question: str) -> list[dict]:
-    client_chroma = chromadb.PersistentClient(path=cfg["chroma_dir"])
+    client_chroma = chroma_client(cfg)
     coll = client_chroma.get_or_create_collection(cfg["chroma_collection"])
     if coll.count() == 0:
         return []

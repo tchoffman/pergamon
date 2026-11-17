@@ -6,8 +6,18 @@ set -euo pipefail
 
 # Resolve paths relative to repo root.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-# An install test run (scripts/test-install.sh) points this at a throwaway folder.
-BUILD_DIR="${PERGAMON_SANDBOX:-$REPO_ROOT/build}"
+
+# Python used by fetcher scripts (venv preferred for YAML parsing + 3.11 syntax).
+if [[ -x "$REPO_ROOT/build/venv/bin/python" ]]; then
+  PY="$REPO_ROOT/build/venv/bin/python"
+else
+  PY="python3"
+fi
+export PY
+
+# The library folder: build/, a configured data drive, or an install test
+# sandbox (rag/storage.py). Stops here if the data drive isn't plugged in.
+BUILD_DIR="$(cd "$REPO_ROOT" && "$PY" -m rag.storage path)" || exit 1
 CORPUS_DIR="$BUILD_DIR/corpus"
 ZIM_DIR="$CORPUS_DIR/zims"
 PDF_DIR="$CORPUS_DIR/pdfs"
@@ -116,11 +126,3 @@ fetch_url() {
     return 1
   fi
 }
-
-# Python used by fetcher scripts (venv preferred for YAML parsing + 3.11 syntax).
-if [[ -x "$REPO_ROOT/build/venv/bin/python" ]]; then
-  PY="$REPO_ROOT/build/venv/bin/python"
-else
-  PY="python3"
-fi
-export PY

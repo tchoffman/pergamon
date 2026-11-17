@@ -16,6 +16,8 @@ if [[ ! -x "$VENV_PY" ]]; then
 fi
 
 # Ensure Ollama is up (embedding endpoint hammered during ingest).
+DATA="$("$VENV_PY" -m rag.storage path)" || exit 1  # library folder; stops if its drive is unplugged
+
 if ! curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
   echo "==> Starting Ollama server"
   (nohup ollama serve >/dev/null 2>&1 &) || true
@@ -28,9 +30,9 @@ if [[ $# -eq 0 ]]; then
   zims=()
   while IFS= read -r -d '' f; do
     zims+=("$f")
-  done < <(find build/corpus/zims -maxdepth 1 -type f -name "*.zim" -print0 2>/dev/null)
+  done < <(find "$DATA/corpus/zims" -maxdepth 1 -type f -name "*.zim" -print0 2>/dev/null)
   if [[ ${#zims[@]} -eq 0 ]]; then
-    echo "No ZIMs found under build/corpus/zims. Run 'make corpus' first." >&2
+    echo "No ZIMs found under $DATA/corpus/zims. Run 'make corpus' first." >&2
     exit 1
   fi
   set -- "${zims[@]}"
