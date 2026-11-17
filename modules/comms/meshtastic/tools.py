@@ -74,12 +74,17 @@ def send(dest: str, text: str) -> int:
         return 1
     try:
         if dest in ("^all", "all", "broadcast"):
-            iface.sendText(text)
-        else:
-            iface.sendText(text, destinationId=dest, wantAck=True)
-        console.print(f"[green]sent[/green] → {dest}")
-        time.sleep(2)  # let the serial write flush before closing
-        return 0
+            iface.sendText(text)  # broadcasts aren't acknowledged
+            console.print(f"[green]sent[/green] → {dest}")
+            time.sleep(2)  # let the serial write flush before closing
+            return 0
+        from modules.comms.meshtastic.listen import _send_confirmed
+        if _send_confirmed(iface, dest, text):
+            console.print(f"[green]delivered[/green] → {dest} (acknowledged)")
+            return 0
+        console.print(f"[red]not confirmed[/red] → {dest}: it may be off, out of range, "
+                      "or not have this radio's key yet")
+        return 1
     finally:
         iface.close()
 

@@ -189,3 +189,16 @@ def test_radio_follow_ups_carry_history_and_new_resets(monkeypatch):
     assert seen[1] == ["How do I build a wood-fired oven?", "re: How do I build a wood-fired oven?"]
     assert "[1/1] Started a new conversation." in iface.sent
     assert seen[2] == []
+
+
+def test_mesh_send_reports_delivery_only_when_acknowledged(monkeypatch):
+    from modules.comms.meshtastic import listen, tools
+
+    class Iface:
+        def close(self):
+            pass
+    monkeypatch.setattr(tools, "_open", lambda: Iface())
+    monkeypatch.setattr(listen, "_send_confirmed", lambda iface, dest, text: True)
+    assert tools.send("!e06fbbd0", "hi") == 0
+    monkeypatch.setattr(listen, "_send_confirmed", lambda iface, dest, text: False)
+    assert tools.send("!e06fbbd0", "hi") == 1
