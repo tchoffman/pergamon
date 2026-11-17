@@ -187,9 +187,40 @@ def retry_waiting_mail(interface: Any) -> int:
     return len(waiting)
 
 
+MORNING = "\x00morning-report"  # job marker: send the good-morning message to `sender`
+
+
+def _send_morning(interface: Any, recipient: str) -> None:
+    from modules.comms.meshtastic import morning
+    text = morning.compose()
+    console.print(f"[cyan]morning report → {recipient}[/cyan]")
+    _reply(interface, recipient, MeshReply(answer=text, sources=[]))
+
+
+def queue_morning_report(interface: Any, now=None) -> bool:
+    """Queue today's good-morning message if it's time (once a day)."""
+    from modules.comms.meshtastic import morning
+    import datetime as dt
+    now = now or dt.datetime.now().astimezone()
+    s = morning.settings()
+    if not morning.due(now, s):
+        return False
+    morning.take_trigger()
+    morning.mark_sent(now.date())
+    for r in s["to"]:
+        _jobs.put((interface, r, MORNING))
+    return True
+
+
 def _worker() -> None:
     while True:
         interface, sender, text = _jobs.get()
+        if text == MORNING:
+            try:
+                _send_morning(interface, sender)
+            except Exception as e:
+                console.print(f"[red]morning report failed: {e!r}[/red]")
+            continue
         if text is None:  # mail delivery job, not a question
             try:
                 _deliver_mail(interface, sender)
@@ -367,8 +398,15 @@ def main() -> int:
 
     console.print("[green]ready. ctrl-c to quit.[/green]")
     next_mail_try = time.time() + 30
+    next_morning_check = time.time() + 5
     try:
         while True:
+            if time.time() >= next_morning_check and not lost.is_set():
+                next_morning_check = time.time() + 30
+                try:
+                    queue_morning_report(iface)
+                except Exception as e:
+                    console.print(f"[red]morning report check failed: {e!r}[/red]")
             if time.time() >= next_mail_try and not lost.is_set():
                 next_mail_try = time.time() + MAIL_RETRY_S
                 retry_waiting_mail(iface)

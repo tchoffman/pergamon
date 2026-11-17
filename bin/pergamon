@@ -23,6 +23,7 @@ Usage:
   pergamon mesh listen         Listen for Meshtastic DMs over USB
   pergamon mesh info           Show the attached radio + nodes it can hear
   pergamon mesh send <node> "text"   One-off DM (or ^all to broadcast)
+  pergamon mesh morning [--send-now]  Show (or send now) the daily good-morning forecast
   pergamon ledger ...          Record-keeping: list / show / add / rm / query
   pergamon services ...        LAN services: list / up / down / restart / status / logs
   pergamon identity ...        Nostr keys: list / create / use / show / export / import
@@ -157,6 +158,7 @@ case "$cmd" in
       listen) exec "$VENV_PY" -m modules.comms.meshtastic.listen "$@" ;;
       info)   exec "$VENV_PY" -m modules.comms.meshtastic.tools info "$@" ;;
       send)   exec "$VENV_PY" -m modules.comms.meshtastic.tools send "$@" ;;
+      morning) exec "$VENV_PY" -m modules.comms.meshtastic.morning "$@" ;;
       *)
         echo "Usage: pergamon mesh {mock|listen|info|send <node> \"text\"}" >&2
         exit 2
