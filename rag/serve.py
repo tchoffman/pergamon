@@ -30,8 +30,12 @@ def hub_https_settings() -> tuple[bool, int]:
     return bool(hub.get("https")), int(hub.get("https_port") or DEFAULT_HTTPS_PORT)
 
 
-async def _serve(host: str, port: int, https: bool, https_port: int) -> None:
+async def _serve(host: str, port: int, https: bool, https_port: int, relay_port: int | None = None) -> None:
     servers = [uvicorn.Server(uvicorn.Config("rag.web:app", host=host, port=port))]
+    extra = []
+    if relay_port:
+        from rag.relay import Relay
+        extra.append(Relay().serve(host=host, port=relay_port))
     if https:
         from rag.tls import ensure_server_cert
         cert = ensure_server_cert()
@@ -39,7 +43,7 @@ async def _serve(host: str, port: int, https: bool, https_port: int) -> None:
         servers.append(uvicorn.Server(uvicorn.Config(
             "rag.web:app", host=host, port=https_port,
             ssl_certfile=str(cert.cert_path), ssl_keyfile=str(cert.key_path))))
-    await asyncio.gather(*(s.serve() for s in servers))
+    await asyncio.gather(*(s.serve() for s in servers), *extra)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -59,8 +63,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  phones set up the secure connection at http://<this hub>:{args.port}/trust")
         from rag.tls import ca_fingerprint
         print(f"  certificate fingerprint (phones compare this): {ca_fingerprint()}")
+    # The community relay (board, listings, messages): built in, unless the
+    # configured relay is elsewhere or something (e.g. a Docker relay) already serves it.
+    from rag.relay import local_port, port_in_use
+    relay_port = local_port()
+    if relay_port and port_in_use(relay_port):
+        print(f"  relay: using the one already running on port {relay_port}")
+        relay_port = None
+    elif relay_port:
+        from rag.relay import Relay
+        print(f"  relay: built in, ws://<this hub>:{relay_port}/ ({Relay().store.count()} events stored)")
     try:
-        asyncio.run(_serve(args.host, args.port, https, https_port))
+        asyncio.run(_serve(args.host, args.port, https, https_port, relay_port))
     except KeyboardInterrupt:
         pass
     return 0

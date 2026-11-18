@@ -29,9 +29,9 @@ You need:
 - **Homebrew** installed. If you don't have it: https://brew.sh.
 - **Git** and **Python 3.11+** (both come free on modern macOS). Check with
   `python3 --version`.
-- **Docker Desktop** — *only* if you want to run the services (calendar,
-  ebook library, Nostr relay, password vault). You can skip Docker and still
-  use the Pergamon library + ask/plan/search.
+- **Docker Desktop** — *only* if you want the optional services (calendar,
+  ebook library, password vault). The board, classifieds, messages and feeds
+  don't need it: Pergamon has its own relay.
 - **Disk space:**
   - Minimum install: ~2 GB
   - Default install: ~5 GB (fits a 16 GB Mac comfortably)
@@ -301,7 +301,16 @@ What you get, per the default services pack:
 | Calendar | http://localhost:5232 | CalDAV/CardDAV; set phones to sync here |
 | Ebook library | http://localhost:8083 | Calibre-Web; Send-to-Kindle over WiFi |
 | Password vault | http://localhost:8089 | Vaultwarden, Bitwarden-compatible |
-| Nostr relay | ws://localhost:8091 | Point any Nostr client here |
+| Nostr relay | ws://localhost:8091 | Optional: Pergamon has its own relay (below), so this is only for a separate one |
+
+**Pergamon's own relay.** `pergamon web` starts a built-in Nostr relay on
+`ws://<this hub>:8091/` (the configured relay address) unless something is
+already serving there, such as the Docker relay. It stores everything in
+SQLite in the library folder (`build/relay/events.db`, or on your external
+drive), checks every signature, keeps only the newest version of edited
+profiles, listings and skills, and applies the host's moderation (blocked
+keys can't post; hidden items aren't served, even to other Nostr apps).
+Run it alone with `pergamon relay`.
 
 Each has its own README under `services/<id>/README.md` with first-time
 setup. **Each is LAN-only by default** — nothing is exposed to the
@@ -309,8 +318,8 @@ internet.
 
 ## Step 11 — Post your first classified
 
-With an identity and the relay running (posts need a relay to be stored
-and found):
+With an identity and the relay running (`pergamon web` starts it; posts need
+a relay to be stored and found):
 
 ```bash
 bin/pergamon classified post \
@@ -352,7 +361,8 @@ Or use the **Receipts** page: it shows a QR code the other person can scan.
 Each Pergamon only knows what was posted to its own relay. To share:
 
 ```bash
-bin/pergamon sync both ws://<other-pergamon-ip>:8091/          # when you can reach each other
+bin/pergamon hub trust '<their hub code>'                      # once, from the other host
+bin/pergamon sync both <their hub name>                         # when you can reach each other
 bin/pergamon sync export --path /Volumes/USB/bundle.jsonl      # or carry a USB stick
 bin/pergamon sync import /Volumes/USB/bundle.jsonl
 ```

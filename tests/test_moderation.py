@@ -71,7 +71,8 @@ def test_blocked_key_disappears_and_cannot_post(hub):
     r = c.post("/api/publish", json={"event": ev.to_json()})
     assert r.status_code == 403 and "blocked" in r.json()["detail"]
     assert c.post("/api/moderation/unblock", json={"pubkey": spam.pubkey}).json() == {"unblocked": True}
-    assert len(_board_texts(c)) == 2
+    # Only the post from before the block: the relay refused the one sent while blocked.
+    assert _board_texts(c) == ["scam one"]
 
 
 def test_sync_never_passes_on_hidden_or_blocked(hub, tmp_path):

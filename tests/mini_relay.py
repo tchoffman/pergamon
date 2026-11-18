@@ -31,7 +31,7 @@ def _matches(ev: dict, f: dict) -> bool:
     return True
 
 
-class MiniRelay:
+class MemoryRelay:
     def __init__(self, port: int = 0):
         self.events: dict[str, dict] = {}
         self._want_port = port
@@ -74,7 +74,7 @@ class MiniRelay:
         self.loop.run_until_complete(start())
         self.loop.run_forever()
 
-    def start(self) -> "MiniRelay":
+    def start(self) -> "MemoryRelay":
         self._thread.start()
         self._ready.wait(5)
         return self
@@ -86,3 +86,45 @@ class MiniRelay:
         asyncio.run_coroutine_threadsafe(shutdown(), self.loop).result(5)
         self.loop.call_soon_threadsafe(self.loop.stop)
         self._thread.join(5)
+
+
+class MiniRelay(MemoryRelay):
+    """Pergamon's real relay (rag/relay.py) on a throwaway SQLite file, with the
+    same start/stop/url/events interface, so every integration test exercises
+    the relay the hub actually runs."""
+
+    def __init__(self, port: int = 0):
+        super().__init__(port)
+        import tempfile
+        from pathlib import Path
+        from rag.relay import Relay
+        self._dir = tempfile.TemporaryDirectory()
+        self.relay = Relay(Path(self._dir.name) / "events.db")
+
+    @property
+    def events(self) -> dict:
+        return {e["id"]: e for e in self.relay.store.query({"limit": 5000})}
+
+    @events.setter
+    def events(self, _value) -> None:  # the parent's in-memory store isn't used
+        pass
+
+    async def _handler(self, ws):
+        await self.relay.handler(ws)
+
+    def _run(self):
+        asyncio.set_event_loop(self.loop)
+
+        async def start():
+            from rag.relay import MAX_MESSAGE
+            self._server = await websockets.serve(self._handler, "127.0.0.1", self._want_port,
+                                                  max_size=MAX_MESSAGE)
+            self.port = self._server.sockets[0].getsockname()[1]
+            self._ready.set()
+
+        self.loop.run_until_complete(start())
+        self.loop.run_forever()
+
+    def stop(self):
+        super().stop()
+        self._dir.cleanup()
