@@ -1427,21 +1427,28 @@ def api_moderation_change(request: Request, action: str, body: dict):
 INBOX_LIMIT = 500
 
 
-@app.post("/api/messages/inbox")
-def messages_inbox(body: dict):
-    """Gift wraps addressed to the key that signed `proof` (a fresh note), so
-    nobody can list someone else's mail (even though they couldn't read it)."""
-    proof = (body or {}).get("proof") or {}
+def _check_proof(proof, purpose: str) -> "_Event":
+    """A fresh note signed by the caller's key, for `purpose`: proves who is
+    asking without accounts or cookies."""
+    proof = proof or {}
     try:
         ev = _Event(kind=int(proof["kind"]), content=str(proof["content"]), pubkey=str(proof["pubkey"]),
                     tags=list(proof["tags"]), created_at=int(proof["created_at"]),
                     id=str(proof["id"]), sig=str(proof["sig"]))
     except (KeyError, TypeError, ValueError):
         raise HTTPException(400, "missing proof")
-    if not _verify(ev) or ev.kind != 27235 or ["purpose", "inbox"] not in [list(t) for t in ev.tags]:
+    if not _verify(ev) or ev.kind != 27235 or ["purpose", purpose] not in [list(t) for t in ev.tags]:
         raise HTTPException(401, "proof doesn't verify")
     if abs(_time.time() - ev.created_at) > 600:
         raise HTTPException(401, "proof is stale; check this device's clock")
+    return ev
+
+
+@app.post("/api/messages/inbox")
+def messages_inbox(body: dict):
+    """Gift wraps addressed to the key that signed `proof` (a fresh note), so
+    nobody can list someone else's mail (even though they couldn't read it)."""
+    ev = _check_proof((body or {}).get("proof"), "inbox")
     wraps = asyncio.run(_nostr_afetch(_load_relays_from_config(),
                                       {"kinds": [KIND_GIFT_WRAP], "#p": [ev.pubkey], "limit": INBOX_LIMIT},
                                       INBOX_LIMIT))
@@ -1465,6 +1472,9 @@ def people(username: str = "", pubkeys: str = ""):
         return {"pubkey": acct.pubkey, "username": acct.username, "name": acct.name}
     keys = [k for k in pubkeys.split(",") if _is_hex_pub(k)][:100]
     out = {}
+    from rag import hubs
+    if hubs.pubkey() in keys:
+        out[hubs.pubkey()] = {"username": None, "name": f"{hubs.name()} (this hub)"}
     for k in keys:
         acct = store.by_pubkey(k)
         if acct:
@@ -1518,3 +1528,26 @@ def hubs_change(request: Request, action: str, body: dict):
     except hubs.TrustError as e:
         raise HTTPException(400, str(e))
     raise HTTPException(404, "unknown action")
+
+
+# ─────────────────────────────── feeds ───────────────────────────────
+
+@app.get("/api/feeds")
+def feeds_list():
+    from rag import feeds
+    return {"feeds": [{"id": f, "title": t} for f, (t, _) in feeds.FEEDS.items()],
+            "times": [t.strftime("%H:%M") for t in feeds.times()]}
+
+
+@app.post("/api/feeds/mine")
+def feeds_mine(body: dict):
+    """Read, or with `feeds` set, a key's subscriptions. Web subscribers get
+    digests as sealed messages from the hub in Messages."""
+    from rag import feeds
+    ev = _check_proof((body or {}).get("proof"), "feeds")
+    if "feeds" in (body or {}):
+        try:
+            return {"feeds": feeds.set_subscriptions(ev.pubkey, list(body["feeds"] or []))}
+        except feeds.FeedError as e:
+            raise HTTPException(400, str(e))
+    return {"feeds": feeds.subscriptions(ev.pubkey)}

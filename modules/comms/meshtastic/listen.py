@@ -158,6 +158,55 @@ def _deliver_mail(interface: Any, recipient: str) -> None:
         console.print(f"[green]  delivered mail #{m['id']} to {recipient}[/green]")
 
 
+def _handle_feeds(sender: str, text: str) -> str | None:
+    """/feeds, /sub <feed>, /unsub <feed|all>; None if it's none of those."""
+    from rag import feeds
+    words = text.strip().split()
+    cmd = words[0].lower() if words else ""
+    if cmd not in ("/feeds", "/sub", "/unsub"):
+        return None
+    try:
+        if cmd == "/feeds" or len(words) < 2:
+            mine = feeds.subscriptions(sender)
+            return ("Feeds: " + ", ".join(feeds.FEEDS) + ". You get: " + (", ".join(mine) or "none")
+                    + ". Send /sub news or /unsub news.")
+        if cmd == "/sub":
+            mine = feeds.subscribe(sender, words[1])
+            return f"Subscribed. You get: {', '.join(mine)}. Digests at " + \
+                ", ".join(t.strftime("%H:%M") for t in feeds.times()) + "; warnings right away."
+        mine = feeds.unsubscribe(sender, words[1])
+        return "Unsubscribed. You get: " + (", ".join(mine) or "nothing")
+    except feeds.FeedError as e:
+        return str(e)
+
+
+def queue_feeds(interface: Any) -> int:
+    """Send any due digests and urgent posts: radio messages to radios, sealed
+    hub messages to web subscribers."""
+    from rag import feeds
+    sent = 0
+    for who, text in feeds.plan():
+        if feeds.is_radio(who):
+            _jobs.put((interface, who, FEED_PREFIX + text))
+        else:
+            try:
+                _send_hub_message(who, text)
+            except Exception as e:
+                console.print(f"[red]feed message to {who[:8]}… failed: {e!r}[/red]")
+        sent += 1
+    return sent
+
+
+def _send_hub_message(pubkey: str, text: str) -> None:
+    from rag import hubs, messages
+    from rag.nostr import _load_relays_from_config, publish
+    wrap = messages.build(hubs._nsec(), pubkey, text)[0]
+    publish(wrap, _load_relays_from_config())
+
+
+FEED_PREFIX = "\x00feed:"
+
+
 def _handle_msg(interface: Any, sender: str, text: str) -> str | None:
     """'/msg who text' → confirmation for the sender; None if not a /msg."""
     try:
@@ -227,6 +276,13 @@ def _worker() -> None:
             except Exception as e:
                 console.print(f"[red]morning report failed: {e!r}[/red]")
             continue
+        if text.startswith(FEED_PREFIX):
+            try:
+                console.print(f"[cyan]feed → {sender}[/cyan]")
+                _reply(interface, sender, MeshReply(answer=text[len(FEED_PREFIX):], sources=[]))
+            except Exception as e:
+                console.print(f"[red]feed delivery failed: {e!r}[/red]")
+            continue
         if text is None:  # mail delivery job, not a question
             try:
                 _deliver_mail(interface, sender)
@@ -241,7 +297,9 @@ def _worker() -> None:
                 conversations.reset(sender)
                 _reply(interface, sender, MeshReply(answer="Started a new conversation.", sources=[]))
                 continue
-            command_reply = _handle_msg(interface, sender, text)
+            command_reply = _handle_feeds(sender, text)
+            if command_reply is None:
+                command_reply = _handle_msg(interface, sender, text)
             if command_reply is None:
                 command_reply = commands.run(text)
             if command_reply is not None:
@@ -413,6 +471,10 @@ def main() -> int:
                     queue_morning_report(iface)
                 except Exception as e:
                     console.print(f"[red]morning report check failed: {e!r}[/red]")
+                try:
+                    queue_feeds(iface)
+                except Exception as e:
+                    console.print(f"[red]feeds check failed: {e!r}[/red]")
             if time.time() >= next_mail_try and not lost.is_set():
                 next_mail_try = time.time() + MAIL_RETRY_S
                 retry_waiting_mail(iface)

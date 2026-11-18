@@ -15,3 +15,10 @@ def _keep_hub_identity_out_of_build(tmp_path, monkeypatch):
     monkeypatch.setattr(hubs, "STATE", tmp_path / "hubstate")
     monkeypatch.setattr(hubs, "KEY_PATH", tmp_path / "hubstate" / "hub.key")
     monkeypatch.setattr(hubs, "TRUST_PATH", tmp_path / "hubstate" / "trusted_hubs.json")
+
+
+@pytest.fixture(autouse=True)
+def _keep_feeds_out_of_build(tmp_path, monkeypatch):
+    from rag import feeds
+    monkeypatch.setattr(feeds, "SUBS_PATH", tmp_path / "feeds.json")
+    monkeypatch.setattr(feeds, "SENT_PATH", tmp_path / "feeds_sent.json")

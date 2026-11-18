@@ -199,6 +199,16 @@ async function person(browser, name) {
     await p.waitForFunction(() => document.getElementById("convos").textContent.includes("a jar for a dozen"), { timeout: 20000 });
     check("Rosa sees Ben's reply", true);
 
+    // Feeds: subscribe on the Me page
+    await p.goto(BASE + "/identity", { waitUntil: "networkidle0" });
+    await p.waitForFunction(() => !document.getElementById("feedsBox").classList.contains("hidden"), { timeout: 10000 });
+    await p.click('#feedList input[value="news"]');
+    await p.click('#feedList input[value="warnings"]');
+    await p.click("#feedForm button");
+    await p.waitForFunction(() => document.getElementById("feedMsg").textContent.startsWith("Saved"), { timeout: 10000 });
+    const saved = await p.$eval("#feedMsg", (n) => n.textContent);
+    check("feeds saved on the Me page", saved === "Saved: news, warnings", saved);
+
     // Sign in as Rosa on a second phone with just username + password
     const ctx2 = await browser.createBrowserContext();
     const p2 = await ctx2.newPage();

@@ -42,10 +42,14 @@ def settings() -> dict | None:
     from rag.install_config import INSTALL_LOCAL_PATH, load_yaml
     local = load_yaml(INSTALL_LOCAL_PATH) if INSTALL_LOCAL_PATH.exists() else {}
     mesh = ((local.get("comms") or {}).get("meshtastic") or {})
+    from rag import feeds
     rep = mesh.get("morning_report")
-    if not rep:
+    subscribed = feeds.weather_subscribers()  # radios that sent /sub weather
+    if not rep and not subscribed:
         return None
-    to = rep.get("to") or mesh.get("allowed_node_ids") or []
+    rep = rep or {}
+    to = (rep.get("to") or mesh.get("allowed_node_ids") or []) if rep else []
+    to = list(dict.fromkeys(list(to) + subscribed))
     hh, mm = (int(x) for x in str(rep.get("time", "07:00")).split(":"))
     return {"time": dt.time(hh, mm), "to": list(to), "lat": rep.get("lat"), "lon": rep.get("lon"),
             "location": local.get("location") or ""}

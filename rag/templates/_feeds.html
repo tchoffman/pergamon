@@ -1,0 +1,43 @@
+<section id="feedsBox" class="hidden">
+  <h2>Feeds</h2>
+  <p class="muted small">Short digests of what's new, sent to your Messages at
+    <span id="feedTimes"></span>. Warnings come right away. Radios can do the same by sending
+    <code>/sub news</code>.</p>
+  <form id="feedForm"><div id="feedList"></div>
+    <button type="submit" class="small-btn">Save feeds</button></form>
+  <div id="feedMsg" class="muted small" role="status"></div>
+</section>
+<script>
+(function () {
+  const K = Pergamon.Keys, $ = (id) => document.getElementById(id);
+  const proof = () => Pergamon.sign({ pubkey: K.pubkey(), created_at: Math.floor(Date.now() / 1000),
+    kind: 27235, tags: [["purpose", "feeds"]], content: "pergamon feeds" });
+  async function load() {
+    if (!K.has()) { $("feedsBox").classList.add("hidden"); return; }
+    const all = await (await fetch("/api/feeds")).json();
+    const mine = (await Pergamon.postJSON("/api/feeds/mine", { proof: proof() })).feeds;
+    $("feedTimes").textContent = all.times.join(", ");
+    const list = $("feedList");
+    list.innerHTML = "";
+    all.feeds.forEach((f) => {
+      const label = document.createElement("label");
+      label.className = "feed-row";
+      const box = document.createElement("input");
+      box.type = "checkbox"; box.value = f.id; box.checked = mine.includes(f.id);
+      label.append(box, " " + f.title);
+      list.appendChild(label);
+    });
+    $("feedsBox").classList.remove("hidden");
+  }
+  $("feedForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const feeds = [...document.querySelectorAll("#feedList input:checked")].map((b) => b.value);
+    try {
+      const r = await Pergamon.postJSON("/api/feeds/mine", { proof: proof(), feeds: feeds });
+      $("feedMsg").textContent = r.feeds.length ? "Saved: " + r.feeds.join(", ") : "Saved: no feeds.";
+    } catch (err) { $("feedMsg").textContent = err.message; }
+  });
+  document.addEventListener("pergamon-key-changed", () => load().catch(() => {}));
+  load().catch(() => {});
+})();
+</script>

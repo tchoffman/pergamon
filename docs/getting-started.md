@@ -222,6 +222,15 @@ Every app has the same bar at the top; tap **‹ Pergamon** to go back home.
   USB bundles carry them to other hubs; the outside of each shows only who
   it's for, never who sent it, and times are blurred by up to two days. The
   inbox only opens for a fresh note signed by the recipient's key.
+- Feeds — neighborhood newscasts. Feeds are the board categories (news,
+  notices, events, help, lost & found, warnings) plus the morning weather.
+  Radios send `/feeds`, `/sub news`, `/unsub news` (or `/unsub all`); web
+  users tick boxes on the Me page and get digests as sealed messages from the
+  hub in Messages. Digests go out at 07:00, 12:00 and 18:00 (set
+  `feeds: {times: [...]}`) with only what's new, at most two radio messages
+  per feed; warnings go out within a minute. The radio listener does the
+  sending, so it must be running. `pergamon feeds` lists feeds and counts;
+  `pergamon feeds preview` shows what a digest would say.
 - Hubs (host only, 🔗) — this hub's code (text and QR) and the hubs it
   trusts. Each hub has its own key (`build/state/hub.key`). `pergamon sync
   pull|push|both <hub>` and `pergamon sync all` only run with trusted hubs,
