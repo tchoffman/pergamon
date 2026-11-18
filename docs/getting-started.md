@@ -222,6 +222,15 @@ Every app has the same bar at the top; tap **‹ Pergamon** to go back home.
   USB bundles carry them to other hubs; the outside of each shows only who
   it's for, never who sent it, and times are blurred by up to two days. The
   inbox only opens for a fresh note signed by the recipient's key.
+- Hubs (host only, 🔗) — this hub's code (text and QR) and the hubs it
+  trusts. Each hub has its own key (`build/state/hub.key`). `pergamon sync
+  pull|push|both <hub>` and `pergamon sync all` only run with trusted hubs,
+  after the other hub signs a fresh challenge; anything else is refused.
+  Exported bundles carry a manifest signed by this hub. Importing a bundle
+  from a hub you don't trust (or an unsigned or altered one) shows what's on
+  it — source, counts, top authors, newest posts — and loads nothing until
+  you rerun with `--accept` (add `--trust` to trust that hub). Blocked keys
+  and hidden posts are dropped from every import.
 - Moderation (host only) — on the hub machine, Board, Classifieds and Skills
   cards show *Hide* and *Block author*; the 🛡️ Moderation app lists what's
   hidden and blocked, with undo. Hidden or blocked content disappears from

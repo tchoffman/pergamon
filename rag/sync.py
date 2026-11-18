@@ -107,22 +107,52 @@ async def publish_batch(relay_url: str, events: list[Event],
     return accepted, rejected, errors
 
 
-def write_bundle(events: list[Event], path: Path) -> int:
+def write_bundle(events: list[Event], path: Path, signed: bool = True) -> int:
+    """One event per line, after a first line holding a manifest signed by
+    this hub (count + hash of the lines), so the next hub knows who made the
+    bundle and that nothing was added or removed on the way."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [json.dumps(ev.to_json(), separators=(",", ":"))
+             for ev in sorted(events, key=lambda e: e.created_at)]
     with path.open("w") as f:
-        for ev in sorted(events, key=lambda e: e.created_at):
-            f.write(json.dumps(ev.to_json(), separators=(",", ":")) + "\n")
+        if signed:
+            from rag import hubs
+            f.write(json.dumps({"pergamon_manifest": hubs.manifest(lines).to_json()},
+                               separators=(",", ":")) + "\n")
+        for line in lines:
+            f.write(line + "\n")
     return len(events)
 
 
-def read_bundle(path: Path) -> tuple[list[Event], int]:
-    """Return (valid events, number of lines that failed verification)."""
-    good: list[Event] = []
-    bad = 0
+def _bundle_lines(path: Path) -> tuple[dict | None, list[str]]:
+    manifest, lines = None, []
     for line in path.read_text().splitlines():
         line = line.strip()
         if not line:
             continue
+        if line.startswith('{"pergamon_manifest"'):
+            try:
+                manifest = json.loads(line)["pergamon_manifest"]
+            except (ValueError, KeyError):
+                pass
+            continue
+        lines.append(line)
+    return manifest, lines
+
+
+def bundle_source(path: Path) -> dict:
+    """Who made a bundle, whether it's intact, and whether that hub is trusted."""
+    from rag import hubs
+    manifest, lines = _bundle_lines(path)
+    return hubs.check_manifest(manifest, lines)
+
+
+def read_bundle(path: Path) -> tuple[list[Event], int]:
+    """Return (valid events, number of lines that failed verification).
+    Hidden posts and blocked keys are left out."""
+    good: list[Event] = []
+    bad = 0
+    for line in _bundle_lines(path)[1]:
         try:
             raw = json.loads(line)
             ev = Event(kind=raw["kind"], content=raw["content"], pubkey=raw["pubkey"],
@@ -140,6 +170,43 @@ def read_bundle(path: Path) -> tuple[list[Event], int]:
 
 
 # ────────────────────────────── CLI ──────────────────────────────────
+
+def review(path: Path, events: list[Event], bad: int) -> str:
+    """What's on a stick, for the host to decide on before anything loads."""
+    from collections import Counter
+    from rag import profiles
+    src = bundle_source(path)
+    kinds = Counter(KIND_NAMES.get(e.kind, f"kind {e.kind}") for e in events)
+    authors = Counter(e.pubkey for e in events if e.kind != 1059)
+    try:
+        names = profiles.fetch_names(_load_relays_from_config(), list(authors))
+    except Exception:  # noqa: BLE001
+        names = {}
+    if not src["signed"]:
+        who = "an unsigned bundle (no hub vouches for it)"
+    elif not src["intact"]:
+        who = f"signed by {src['name']}, but its contents changed after signing"
+    else:
+        who = f"{src['name']} ({'trusted' if src['trusted'] else 'not a trusted hub'})"
+    out = [f"From: {who}",
+           f"Contains: {len(events)} items" + (f" ({bad} failed signature checks, skipped)" if bad else ""),
+           "  " + ", ".join(f"{n} {k}" for k, n in kinds.most_common())]
+    if authors:
+        out.append("Most items from: " + ", ".join(
+            f"{names.get(pk) or pk[:10] + '…'} ({n})" for pk, n in authors.most_common(5)))
+    if events:
+        lo, hi = min(e.created_at for e in events), max(e.created_at for e in events)
+        out.append(f"Dated: {time.strftime('%Y-%m-%d', time.localtime(lo))} to "
+                   f"{time.strftime('%Y-%m-%d', time.localtime(hi))}")
+    newest = sorted((e for e in events if e.kind == 1), key=lambda e: -e.created_at)[:3]
+    for e in newest:
+        out.append(f"  newest post: {e.content[:70]}")
+    return "\n".join(out)
+
+
+KIND_NAMES = {0: "profiles", 1: "board posts", 30402: "classifieds", 30405: "trade receipts",
+              30406: "library catalogs", 30407: "skills", 1059: "sealed messages"}
+
 
 def _since(days: float) -> int:
     return int(time.time() - days * 86400)
@@ -162,6 +229,8 @@ def main(argv: list[str]) -> int:
         "  pergamon sync both <ws://remote>\n"
         "  pergamon sync export --path FILE   write a sneakernet bundle (.jsonl)\n"
         "  pergamon sync import FILE          verify + load a bundle into your relay(s)\n"
+        "      (from an untrusted hub: shows what's on it; add --accept to load once, --trust to trust)\n"
+        "  pergamon sync all                  both ways with every trusted hub\n"
         f"  options: --days N (default {DEFAULT_DAYS})"
     )
     if not argv:
@@ -182,11 +251,24 @@ def main(argv: list[str]) -> int:
     since = _since(days)
     local = _load_relays_from_config()
 
-    if cmd in ("pull", "push", "both"):
+    if cmd in ("pull", "push", "both", "all"):
+        from rag import hubs
+        if cmd == "all":
+            targets = [h["name"] for h in hubs.trusted().values()]
+            if not targets:
+                console.print("No trusted hubs yet. Add one with: pergamon hub trust '<code>'")
+                return 0
+            return max(main(["both", t, "--days", str(days)]) for t in targets)
         if not positional:
             console.print(usage)
             return 2
-        remote = positional[0]
+        try:
+            _, hub = hubs.verify_remote(positional[0])
+        except hubs.TrustError as e:
+            console.print(f"[red]{e}[/red]")
+            return 1
+        console.print(f"Syncing with {hub['name']} (verified).")
+        remote = hub["relay"]
         rc = 0
         if cmd in ("pull", "both"):
             for dst in local:
@@ -212,6 +294,21 @@ def main(argv: list[str]) -> int:
             console.print("[red]bundle file not found[/red]")
             return 2
         events, bad = read_bundle(src)
+        source = bundle_source(src)
+        if not source["trusted"]:
+            console.print(review(src, events, bad))
+            if "--accept" not in rest:
+                console.print("\n[yellow]Not imported: this bundle isn't from a trusted hub.[/yellow] "
+                              "If you're happy with what's above, run the import again with --accept "
+                              "(add --trust to trust that hub from now on).")
+                return 1
+            if "--trust" in rest and source["signed"] and source["intact"]:
+                from rag import hubs
+                hubs.trust({"pubkey": source["pubkey"], "name": source["name"],
+                            "web": source["web"], "relay": source["relay"]})
+                console.print(f"Trusted {source['name']} from now on.")
+        else:
+            console.print(f"From {source['name']} (trusted).")
         console.print(f"{len(events)} valid events in bundle" +
                       (f", [red]{bad} failed verification and were skipped[/red]" if bad else ""))
         rc = 0

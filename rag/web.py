@@ -108,6 +108,7 @@ APPS = [
     ("Bulletin", "/bulletin", "🖨️", None),
     ("Forms", "/forms", "📝", None),
     ("Moderation", "/moderation", "🛡️", "host"),
+    ("Hubs", "/hubs", "🔗", "host"),
 ]
 
 
@@ -1479,3 +1480,41 @@ def people(username: str = "", pubkeys: str = ""):
             if names.get(k):
                 out[k] = {"username": None, "name": names[k]}
     return {"people": out}
+
+
+# ─────────────────────────────── hub identity ───────────────────────────────
+
+@app.get("/api/hub/hello")
+def hub_hello(challenge: str):
+    """Another hub checks who this is before syncing: we sign its challenge."""
+    from rag import hubs
+    try:
+        return hubs.hello(challenge)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/hubs", response_class=HTMLResponse)
+def hubs_page(request: Request):
+    from rag import hubs
+    from rag.cards import qr_svg
+    _moderator_only(request)
+    code = hubs.code()
+    return templates.TemplateResponse(request, "hubs.html", {
+        "name": hubs.name(), "code": code, "qr": qr_svg(code, scale=4), "hubs": hubs.trusted()})
+
+
+@app.post("/api/hubs/{action}")
+def hubs_change(request: Request, action: str, body: dict):
+    from rag import hubs
+    _moderator_only(request)
+    body = body or {}
+    try:
+        if action == "trust":
+            info = hubs.parse_code(str(body.get("code", "")))
+            return {"trusted": hubs.trust(info)}
+        if action == "untrust":
+            return {"removed": hubs.untrust(str(body.get("who", "")))}
+    except hubs.TrustError as e:
+        raise HTTPException(400, str(e))
+    raise HTTPException(404, "unknown action")

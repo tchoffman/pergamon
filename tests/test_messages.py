@@ -144,8 +144,11 @@ def test_message_reaches_another_hub_by_usb_without_naming_the_sender(hub, tmp_p
     events = asyncio.run(sync.collect(hub.url, 0))
     path = tmp_path / "stick.jsonl"
     sync.write_bundle(events, path)
-    stick = [json.loads(line) for line in path.read_text().splitlines()]
+    lines = [json.loads(line) for line in path.read_text().splitlines()]
+    manifest = [x for x in lines if "pergamon_manifest" in x]
+    stick = [x for x in lines if "kind" in x]
     assert "Letter" not in path.read_text()
+    assert a not in json.dumps(manifest) and b not in json.dumps(manifest)  # names the hub only
     _no_wrap_links(stick, a, b)  # who wrote to whom isn't on the stick
     # Hub 2 imports it; Bob reads his mail there.
     other = MiniRelay().start()

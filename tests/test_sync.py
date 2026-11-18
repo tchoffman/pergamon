@@ -32,9 +32,10 @@ def test_bundle_rejects_tampered_and_garbage(tmp_path):
     p = tmp_path / "b.jsonl"
     sync.write_bundle(evs, p)
     lines = p.read_text().splitlines()
-    forged = json.loads(lines[0])
+    assert "pergamon_manifest" in lines[0]  # the signed manifest comes first
+    forged = json.loads(lines[1])
     forged["content"] = "Bridge is fine, come on through"
-    lines[0] = json.dumps(forged)
+    lines[1] = json.dumps(forged)
     lines.append("not json")
     p.write_text("\n".join(lines) + "\n")
     back, bad = sync.read_bundle(p)
