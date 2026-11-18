@@ -1,0 +1,42 @@
+# Planting times for common vegetables and herbs, relative to the area's
+# average last spring frost (LF) and first fall frost (FF).
+#
+# Weeks are relative to the frost date: negative = before, positive = after.
+# Timing follows general US extension-service guidance (e.g. state university
+# vegetable planting charts); local conditions vary, so treat these as a
+# starting point.
+#
+#   indoors:   start seeds indoors, weeks relative to LF
+#   transplant: set plants out, weeks relative to LF
+#   sow:       direct-sow outdoors in spring, weeks relative to LF
+#   fall_sow:  direct-sow for a fall crop, weeks relative to FF
+#   fall_transplant: set out plants for fall, weeks relative to FF
+#   days:      typical days to harvest
+#   frost:     hardy (takes frost) | half-hardy (light frost) | tender (none)
+crops:
+  - {name: Tomatoes,      frost: tender,     indoors: [-8, -6], transplant: [1, 3],  days: 75}
+  - {name: Peppers,       frost: tender,     indoors: [-10, -8], transplant: [2, 4], days: 75}
+  - {name: Eggplant,      frost: tender,     indoors: [-10, -8], transplant: [2, 4], days: 80}
+  - {name: Squash,        frost: tender,     sow: [1, 4],      fall_sow: [-12, -10], days: 55}
+  - {name: Cucumbers,     frost: tender,     sow: [1, 4],      fall_sow: [-12, -10], days: 60}
+  - {name: Beans (bush),  frost: tender,     sow: [1, 6],      fall_sow: [-12, -10], days: 55}
+  - {name: Sweet corn,    frost: tender,     sow: [1, 4],      days: 80}
+  - {name: Okra,          frost: tender,     sow: [2, 6],      days: 60}
+  - {name: Watermelon,    frost: tender,     sow: [2, 4],      days: 85}
+  - {name: Sweet potatoes, frost: tender,    transplant: [2, 6], days: 110}
+  - {name: Basil,         frost: tender,     indoors: [-6, -4], transplant: [1, 3],  days: 60}
+  - {name: Lettuce,       frost: half-hardy, sow: [-4, 2],     fall_sow: [-8, -4],   days: 45}
+  - {name: Spinach,       frost: hardy,      sow: [-6, -2],    fall_sow: [-8, -4],   days: 45}
+  - {name: Peas,          frost: hardy,      sow: [-6, -2],    days: 65}
+  - {name: Radishes,      frost: hardy,      sow: [-5, 2],     fall_sow: [-6, -2],   days: 28}
+  - {name: Carrots,       frost: half-hardy, sow: [-3, 2],     fall_sow: [-12, -8],  days: 70}
+  - {name: Beets,         frost: half-hardy, sow: [-3, 2],     fall_sow: [-10, -8],  days: 60}
+  - {name: Turnips,       frost: hardy,      sow: [-4, 0],     fall_sow: [-10, -6],  days: 50}
+  - {name: Kale,          frost: hardy,      indoors: [-8, -6], transplant: [-4, -2], fall_transplant: [-10, -6], days: 60}
+  - {name: Collards,      frost: hardy,      indoors: [-8, -6], transplant: [-4, -2], fall_transplant: [-12, -8], days: 70}
+  - {name: Cabbage,       frost: hardy,      indoors: [-10, -8], transplant: [-4, -2], fall_transplant: [-12, -10], days: 75}
+  - {name: Broccoli,      frost: hardy,      indoors: [-10, -8], transplant: [-4, -2], fall_transplant: [-12, -10], days: 70}
+  - {name: Onions (sets), frost: hardy,      sow: [-6, -2],    days: 100}
+  - {name: Garlic,        frost: hardy,      fall_sow: [-6, -2],  days: 240}
+  - {name: Potatoes,      frost: half-hardy, sow: [-4, 0],     days: 90}
+  - {name: Cilantro,      frost: half-hardy, sow: [-2, 2],     fall_sow: [-8, -6],   days: 50}

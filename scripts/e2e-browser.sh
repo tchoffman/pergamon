@@ -27,6 +27,10 @@ RELAY_PORT="$(free_port)"; WEB_PORT="$(free_port)"
 rsync -a --exclude build --exclude .git "$REPO/" "$WORK/app/"
 mkdir -p "$WORK/app/build" && ln -s "$REPO/build/venv" "$WORK/app/build/venv"
 printf 'preset: default\nnostr:\n  relays:\n    - ws://127.0.0.1:%s/\n' "$RELAY_PORT" > "$WORK/app/config/install.local.yaml"
+# Frost dates, so the Guide doesn't reach out to NOAA during the test.
+mkdir -p "$WORK/app/build/state"
+printf '{"last":"03-27","first":"11-07","last_safe":"04-12","first_safe":"10-27","source":"test data"}' \
+  > "$WORK/app/build/state/frost.json"
 
 cd "$WORK/app"
 "$PY" -c "

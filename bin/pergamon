@@ -15,6 +15,7 @@ Usage:
   pergamon search "query"      Semantic search — top-K raw hits, no LLM
   pergamon plan "goal"         Structured plan (steps, resources, risks)
   pergamon eval [--model M]    Score answers against config/eval/questions.yaml
+  pergamon guide [now | frost [set MM-DD MM-DD]]  Planting calendar and frost dates
   pergamon relay [--port N]   The community relay on its own (pergamon web starts it too)
   pergamon feeds [preview [feed]]  Neighborhood feeds: subscribers and next digest
   pergamon hub [code | trust <code> | list | untrust <name>]  Hubs this one syncs with
@@ -168,6 +169,12 @@ case "$cmd" in
         exit 2
         ;;
     esac
+    ;;
+
+  guide)
+    require_venv
+    cd "$REPO_ROOT"
+    exec "$VENV_PY" -m rag.guide "$@"
     ;;
 
   relay)

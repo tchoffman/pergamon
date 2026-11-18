@@ -1,0 +1,199 @@
+{% extends "_base.html" %}
+{% block title %}Pergamon · Guide{% endblock %}
+{% block app_name %}<span class="app-name">Guide</span>{% endblock %}
+{% block head %}
+  <script src="/static/vendor/noble-nostr.js"></script>
+  <script src="/static/pergamon.js"></script>
+{% endblock %}
+{% block content %}
+  <nav class="tabs" role="tablist">
+    <button type="button" class="tab active" data-tab="plant">Plant</button>
+    <button type="button" class="tab" data-tab="help">Who can help</button>
+    <button type="button" class="tab" data-tab="places">Places</button>
+  </nav>
+
+  <section id="tab-plant">
+    <p id="frostLine" class="muted">Loading…</p>
+    <h2>Plant now</h2>
+    <div id="plantNow"></div>
+    <h2>Coming up</h2>
+    <div id="plantSoon"></div>
+    <details>
+      <summary>The whole year</summary>
+      <div id="plantYear"></div>
+    </details>
+    {% if is_host %}
+    <details>
+      <summary class="muted small">Set frost dates by hand</summary>
+      <form id="frostForm">
+        <input id="lastFrost" type="text" placeholder="Last spring frost, e.g. 03-25" />
+        <input id="firstFrost" type="text" placeholder="First fall frost, e.g. 11-10" />
+        <button type="submit" class="small-btn">Save</button>
+      </form>
+    </details>
+    {% endif %}
+  </section>
+
+  <section id="tab-help" class="hidden">
+    <form id="helpForm"><input id="helpQ" type="text" placeholder="What do you need? (e.g. welding, bikes)" />
+      <button type="submit">Find</button></form>
+    <div id="helpList"><p class="muted">Loading…</p></div>
+    <p class="muted small">Offer your own skills on the <a href="/skills">Skills</a> page.</p>
+  </section>
+
+  <section id="tab-places" class="hidden">
+    <form id="placeSearch">
+      <input id="placeQ" type="text" placeholder="Search places and notes…" />
+      <select id="placeCat" aria-label="category"><option value="">All</option>
+        {% for k, t in categories.items() %}<option value="{{ k }}">{{ t }}</option>{% endfor %}</select>
+      <button type="submit">Search</button>
+    </form>
+    <div id="placeList"><p class="muted">Loading…</p></div>
+
+    <h2 id="noteHeading">Add a note about a place</h2>
+    <p id="noKey" class="muted hidden">Sign in on <a href="/identity">Me</a> to add notes.</p>
+    <form id="noteForm" class="hidden">
+      <div class="row"><label for="nPlace">Place</label><input id="nPlace" placeholder="Mill Creek footbridge" /></div>
+      <div class="row"><label for="nCat">Kind of place</label>
+        <select id="nCat">{% for k, t in categories.items() %}<option value="{{ k }}">{{ t }}</option>{% endfor %}</select></div>
+      <div class="row"><label for="nLoc">Where (optional)</label><input id="nLoc" placeholder="behind the library" /></div>
+      <div class="row"><label for="nNote">Your note</label>
+        <textarea id="nNote" rows="3" maxlength="600" placeholder="Watercress grows here in April; the water is clear above the bridge."></textarea></div>
+      <button type="submit">Save note</button>
+      <span class="muted small">One note per place per person: saving again edits yours.</span>
+    </form>
+    <div id="noteMsg" class="muted small" role="status"></div>
+  </section>
+{% endblock %}
+{% block scripts %}
+  <script>
+  (function () {
+    const $ = (id) => document.getElementById(id);
+    const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+    const K = Pergamon.Keys;
+    const fmt = (iso) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+    document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === t));
+      ["plant", "help", "places"].forEach((n) => $("tab-" + n).classList.toggle("hidden", n !== t.dataset.tab));
+    }));
+
+    // ── planting ──
+    function windowRow(w) {
+      const r = el("div", "listing");
+      r.appendChild(el("strong", "", w.crop));
+      r.appendChild(el("span", "muted", " · " + w.label.toLowerCase() + ", " + fmt(w.start) + " – " + fmt(w.end)));
+      if (w.days) r.appendChild(el("div", "muted small", "about " + w.days + " days to harvest · " + w.frost));
+      return r;
+    }
+    async function loadPlanting() {
+      const d = await (await fetch("/api/guide/planting")).json();
+      if (!d.frost) {
+        $("frostLine").textContent = "Frost dates for this hub aren't known yet." +
+          ({{ 'true' if is_host else 'false' }} ? " Set them below." : " The host can set them.");
+        return;
+      }
+      const f = d.frost;
+      $("frostLine").textContent = "Average last frost " + fmt(new Date().getFullYear() + "-" + f.last) +
+        (f.last_safe ? " (safe after " + fmt(new Date().getFullYear() + "-" + f.last_safe) + ")" : "") +
+        ", first frost " + fmt(new Date().getFullYear() + "-" + f.first) + ". " + f.source + ".";
+      $("plantNow").innerHTML = "";
+      if (!d.now.length) $("plantNow").appendChild(el("p", "muted", "Nothing is in its usual planting window this week."));
+      d.now.forEach((w) => $("plantNow").appendChild(windowRow(w)));
+      $("plantSoon").innerHTML = "";
+      d.soon.forEach((w) => $("plantSoon").appendChild(windowRow(w)));
+      $("plantYear").innerHTML = "";
+      let month = "";
+      (d.year || []).forEach((w) => {
+        const m = new Date(w.start + "T12:00:00").toLocaleDateString(undefined, { month: "long" });
+        if (m !== month) { month = m; $("plantYear").appendChild(el("h3", "", m)); }
+        $("plantYear").appendChild(windowRow(w));
+      });
+    }
+    const ff = $("frostForm");
+    if (ff) ff.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try { await Pergamon.postJSON("/api/guide/frost", { last: $("lastFrost").value.trim(), first: $("firstFrost").value.trim() }); loadPlanting(); }
+      catch (err) { alert(err.message); }
+    });
+
+    // ── who can help ──
+    const repCache = {};
+    const reputation = (pk) => repCache[pk] || (repCache[pk] = fetch("/api/reputation/" + pk)
+      .then((r) => r.ok ? r.json() : null).then((d) => d && d.summary).catch(() => null));
+    async function loadHelp() {
+      const q = $("helpQ").value.trim();
+      const d = await (await fetch("/api/skills?q=" + encodeURIComponent(q))).json();
+      const box = $("helpList"); box.innerHTML = "";
+      if (!d.skills.length) { box.appendChild(el("p", "muted", q ? "No one listed for that yet." : "No skills listed yet.")); return; }
+      d.skills.forEach((s) => {
+        const c = el("div", "listing");
+        c.appendChild(el("strong", "", s.title));
+        c.appendChild(el("span", "muted", " · " + (s.author || s.pubkey.slice(0, 8) + "…")));
+        if (s.description) c.appendChild(el("p", "", s.description));
+        const meta = [s.availability, s.rate, s.location].filter(Boolean).join(" · ");
+        if (meta) c.appendChild(el("div", "muted small", meta));
+        const rep = el("div", "muted small", "");
+        c.appendChild(rep);
+        reputation(s.pubkey).then((t) => { rep.textContent = t ? "reputation: " + t : "no confirmed trades yet"; });
+        box.appendChild(c);
+      });
+    }
+    $("helpForm").addEventListener("submit", (e) => { e.preventDefault(); loadHelp(); });
+
+    // ── places ──
+    async function loadPlaces() {
+      const params = new URLSearchParams({ q: $("placeQ").value.trim(), category: $("placeCat").value });
+      const d = await (await fetch("/api/guide/places?" + params)).json();
+      const box = $("placeList"); box.innerHTML = "";
+      if (!d.places.length) { box.appendChild(el("p", "muted", "No notes yet. Add the first one below.")); return; }
+      d.places.forEach((p) => {
+        const c = el("div", "listing");
+        c.appendChild(el("strong", "", p.place));
+        if (p.location) c.appendChild(el("span", "muted", " · " + p.location));
+        p.notes.forEach((n) => {
+          const row = el("div", "place-note");
+          row.appendChild(el("p", "", n.note));
+          row.appendChild(el("div", "muted small", "— " + n.author));
+          if (K.has() && n.pubkey === K.pubkey()) {
+            const edit = el("button", "linklike small", "Edit my note");
+            edit.type = "button";
+            edit.addEventListener("click", () => {
+              $("nPlace").value = p.place; $("nCat").value = n.category; $("nLoc").value = n.location; $("nNote").value = n.note;
+              $("noteHeading").textContent = "Edit your note";
+              $("nNote").focus();
+            });
+            row.appendChild(edit);
+          }
+          row.dataset.pubkey = n.pubkey;
+          PergamonModerate.controls(row, { id: n.id, pubkey: n.pubkey, kind: 30408, d: n.d, preview: p.place + ": " + n.note },
+            (pk) => document.querySelectorAll(`.place-note[data-pubkey="${pk}"]`).forEach((x) => x.remove()));
+          c.appendChild(row);
+        });
+        box.appendChild(c);
+      });
+    }
+    $("placeSearch").addEventListener("submit", (e) => { e.preventDefault(); loadPlaces(); });
+    function renderNoteForm() {
+      $("noKey").classList.toggle("hidden", K.has());
+      $("noteForm").classList.toggle("hidden", !K.has());
+    }
+    $("noteForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      $("noteMsg").textContent = "Saving…";
+      try {
+        await Pergamon.signAndPublish("/api/draft/place", { place: $("nPlace").value, category: $("nCat").value,
+                                                          location: $("nLoc").value, note: $("nNote").value });
+        $("noteMsg").textContent = "Saved.";
+        $("nNote").value = ""; $("noteHeading").textContent = "Add a note about a place";
+        loadPlaces();
+      } catch (err) { $("noteMsg").textContent = err.message; }
+    });
+
+    renderNoteForm();
+    loadPlanting().catch(() => { $("frostLine").textContent = "Couldn't load the planting calendar."; });
+    loadHelp().catch(() => {});
+    loadPlaces().catch(() => {});
+  })();
+  </script>
+{% endblock %}

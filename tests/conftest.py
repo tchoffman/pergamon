@@ -22,3 +22,15 @@ def _keep_feeds_out_of_build(tmp_path, monkeypatch):
     from rag import feeds
     monkeypatch.setattr(feeds, "SUBS_PATH", tmp_path / "feeds.json")
     monkeypatch.setattr(feeds, "SENT_PATH", tmp_path / "feeds_sent.json")
+
+
+@pytest.fixture(autouse=True)
+def _guide_offline(tmp_path, monkeypatch):
+    """Tests get their own frost-date cache and never call NOAA."""
+    from rag import guide
+    monkeypatch.setattr(guide, "FROST_PATH", tmp_path / "frost.json")
+
+    def offline(*a, **k):
+        raise guide.GuideError("no network in tests")
+    monkeypatch.setattr(guide, "_real_fetch_frost", guide.fetch_frost, raising=False)
+    monkeypatch.setattr(guide, "fetch_frost", offline)

@@ -99,6 +99,7 @@ APPS = [
     ("Ask", "/chat", "💬", None),
     ("Messages", "/messages", "✉️", None),
     ("Library", "/library", "📚", None),
+    ("Guide", "/guide", "🧭", None),
     ("Board", "/board", "📌", None),
     ("Classifieds", "/classifieds", "🏷️", None),
     ("Skills", "/skills", "🛠️", None),
@@ -1053,7 +1054,7 @@ def _check_publishable(ev: "_Event") -> None:
             raise HTTPException(400, "profile content must be JSON")
         if not isinstance(meta, dict) or not set(meta) <= _PROFILE_KEYS:
             raise HTTPException(400, "unexpected profile fields")
-    elif ev.kind in (_cl.KIND_CLASSIFIED, _sk.KIND_SKILL, _rc.KIND_RECEIPT, 30406):
+    elif ev.kind in (_cl.KIND_CLASSIFIED, _sk.KIND_SKILL, _rc.KIND_RECEIPT, 30406, 30408):
         if "d" not in tags:
             raise HTTPException(400, "addressable event needs a d tag")
     elif ev.kind == KIND_GIFT_WRAP:
@@ -1551,3 +1552,64 @@ def feeds_mine(body: dict):
         except feeds.FeedError as e:
             raise HTTPException(400, str(e))
     return {"feeds": feeds.subscriptions(ev.pubkey)}
+
+
+# ─────────────────────────────── local guide ───────────────────────────────
+
+@app.get("/guide", response_class=HTMLResponse)
+def guide_page(request: Request):
+    from rag import guide
+    return templates.TemplateResponse(request, "guide.html", {
+        "categories": guide.PLACE_CATEGORIES, "is_host": _is_host(request)})
+
+
+@app.get("/api/guide/planting")
+def guide_planting():
+    from rag import guide
+    p = guide.plant_now()
+    fr = p["frost"]
+    row = lambda w: {k: (str(v) if k in ("start", "end") else v) for k, v in w.items()}  # noqa: E731
+    out = {"frost": fr, "now": [row(w) for w in p["now"]], "soon": [row(w) for w in p["soon"]]}
+    if fr:
+        import datetime as _dt
+        out["year"] = [row(w) for w in guide.windows(fr, _dt.date.today().year)]
+    return out
+
+
+@app.post("/api/guide/frost")
+def guide_set_frost(request: Request, body: dict):
+    from rag import guide
+    _moderator_only(request)
+    try:
+        return guide.set_frost(str((body or {}).get("last", "")), str((body or {}).get("first", "")))
+    except guide.GuideError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/guide/places")
+def guide_places(q: str = "", category: str | None = None):
+    from rag import guide
+    places = guide.fetch_places(_load_relays_from_config(), q, category or None)
+    authors = {n["pubkey"] for p in places for n in p["notes"]}
+    from rag import profiles as _pf
+    try:
+        names = _pf.fetch_names(_load_relays_from_config(), list(authors))
+    except Exception:
+        names = {}
+    store = _accounts.get_store()
+    for p in places:
+        for n in p["notes"]:
+            acct = store.by_pubkey(n["pubkey"])
+            n["author"] = names.get(n["pubkey"]) or (acct and (acct.name or acct.username)) or n["pubkey"][:8] + "…"
+    return {"places": places}
+
+
+@app.post("/api/draft/place")
+def draft_place(body: dict):
+    from rag import guide
+    pub = _need_pub(body)
+    try:
+        return _draft(guide.build_place_note(pub, str(body.get("place", "")), str(body.get("note", "")),
+                                             str(body.get("category") or "other"), str(body.get("location") or "")))
+    except guide.GuideError as e:
+        raise HTTPException(400, str(e))

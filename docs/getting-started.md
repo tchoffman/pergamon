@@ -222,6 +222,15 @@ Every app has the same bar at the top; tap **‹ Pergamon** to go back home.
   USB bundles carry them to other hubs; the outside of each shows only who
   it's for, never who sent it, and times are blurred by up to two days. The
   inbox only opens for a fresh note signed by the recipient's key.
+- Guide (🧭) — what's useful around here. *Plant* shows the area's frost
+  dates (NOAA 1991-2020 normals from the nearest weather station that records
+  them, fetched once and cached; the host can set them by hand) and which
+  vegetables to start, sow or set out now and next, from
+  `config/guide/crops.yaml`. *Who can help* lists skills with reputation from
+  confirmed trades. *Places* holds short notes people write about local
+  places, one per person per place (saving again edits yours); they sync to
+  trusted hubs and follow moderation. The assistant can answer "what should I
+  plant now?" from the same calendar. `pergamon guide [now | frost [set MM-DD MM-DD]]`.
 - Feeds — neighborhood newscasts. Feeds are the board categories (news,
   notices, events, help, lost & found, warnings) plus the morning weather.
   Radios send `/feeds`, `/sub news`, `/unsub news` (or `/unsub all`); web

@@ -47,7 +47,7 @@ console = Console()
 BOARD_TAG = "pergamon-board"
 # profiles, classifieds, receipts, catalogs, skills, and gift-wrapped private
 # messages (kind 1059: they show only the recipient, never the sender).
-SYNC_KINDS = [0, 30402, 30405, 30406, 30407, 1059]
+SYNC_KINDS = [0, 30402, 30405, 30406, 30407, 30408, 1059]  # 30408: place notes (Local guide)
 DEFAULT_DAYS = 60
 DEFAULT_LIMIT = 5000
 
@@ -205,7 +205,8 @@ def review(path: Path, events: list[Event], bad: int) -> str:
 
 
 KIND_NAMES = {0: "profiles", 1: "board posts", 30402: "classifieds", 30405: "trade receipts",
-              30406: "library catalogs", 30407: "skills", 1059: "sealed messages"}
+              30406: "library catalogs", 30407: "skills", 30408: "place notes",
+              1059: "sealed messages"}
 
 
 def _since(days: float) -> int:

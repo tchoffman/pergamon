@@ -183,12 +183,18 @@ def _schema(name: str, description: str, params: dict[str, str], required: list[
                        "required": required}}}
 
 
+def planting_calendar() -> str:
+    from rag import guide
+    return guide.describe_now()
+
+
 def tools_for(cfg: dict, run: Run, is_host: bool) -> tuple[list[dict], dict[str, Callable[..., str]]]:
     """(schemas for the model, name → function). Private tools only for the host."""
     fns: dict[str, Callable[..., str]] = {
         "search_library": _search_library(cfg, run),
         "calculate": calculate,
         **_community_tools(),
+        "planting_calendar": planting_calendar,
     }
     schemas = [
         _schema("search_library", "Search the offline library (encyclopedia, manuals, field guides, "
@@ -201,6 +207,8 @@ def tools_for(cfg: dict, run: Run, is_host: bool) -> tuple[list[dict], dict[str,
                 {"query": "skill words, e.g. 'welding'"}, ["query"]),
         _schema("board_posts", "Latest posts on the local community bulletin board.",
                 {"category": "optional: news, notice, event, help, lost-found, warning"}, []),
+        _schema("planting_calendar", "This area's frost dates and which vegetables to plant now "
+                "and soon (from local climate records).", {}, []),
     ]
     if is_host:
         fns["pantry"] = pantry

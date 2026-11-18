@@ -199,6 +199,19 @@ async function person(browser, name) {
     await p.waitForFunction(() => document.getElementById("convos").textContent.includes("a jar for a dozen"), { timeout: 20000 });
     check("Rosa sees Ben's reply", true);
 
+    // Local guide: frost dates shown; a place note added and listed
+    await p.goto(BASE + "/guide", { waitUntil: "networkidle0" });
+    await p.waitForFunction(() => document.getElementById("frostLine").textContent.includes("test data"), { timeout: 10000 });
+    check("guide shows the frost dates", true);
+    await p.click('.tab[data-tab="places"]');
+    await p.type("#nPlace", "Mill Creek");
+    await p.select("#nCat", "food");
+    await p.type("#nNote", "Watercress grows here in April");
+    await p.click("#noteForm button");
+    await p.waitForFunction(() => document.getElementById("placeList").textContent.includes("Watercress"), { timeout: 15000 });
+    const author = await p.$eval("#placeList .place-note .muted", (n) => n.textContent);
+    check("place note added from the browser, shown with its author", author.includes("Rosa"), author);
+
     // Feeds: subscribe on the Me page
     await p.goto(BASE + "/identity", { waitUntil: "networkidle0" });
     await p.waitForFunction(() => !document.getElementById("feedsBox").classList.contains("hidden"), { timeout: 10000 });
