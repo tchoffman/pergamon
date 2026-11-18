@@ -1,0 +1,148 @@
+{% extends "_base.html" %}
+{% block title %}Pergamon · Messages{% endblock %}
+{% block app_name %}<span class="app-name">Messages</span>{% endblock %}
+{% block head %}
+  <script src="/static/vendor/noble-nostr.js"></script>
+  <script src="/static/pergamon.js"></script>
+{% endblock %}
+{% block content %}
+  <div id="needKey" class="hidden">
+    <p>Sign in to send and read messages. <a href="/identity">Go to Me →</a></p>
+  </div>
+
+  <div id="app" class="hidden">
+    <form id="compose">
+      <input id="to" type="text" placeholder="To: username or npub…" autocomplete="off"
+        autocapitalize="off" spellcheck="false" />
+      <textarea id="text" rows="2" maxlength="4000" placeholder="Message"></textarea>
+      <button type="submit">Send</button>
+    </form>
+    <div id="status" class="muted small" role="status"></div>
+
+    <section id="threadView" class="hidden">
+      <button type="button" id="back" class="linklike">‹ All conversations</button>
+      <h2 id="threadName"></h2>
+      <div id="thread"></div>
+    </section>
+
+    <section id="listView">
+      <h2>Conversations</h2>
+      <div id="convos"><p class="muted">Loading…</p></div>
+    </section>
+
+    <p class="muted small">Only you and the person you write to can read these. The hub stores
+      them sealed and can't open them, and when they travel to another hub by sync or USB stick,
+      the outside shows only who a message is for.</p>
+  </div>
+{% endblock %}
+{% block scripts %}
+  <script>
+    (function () {
+      const K = Pergamon.Keys, M = Pergamon.Messages;
+      const $ = (id) => document.getElementById(id);
+      const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+      let msgs = [], names = {}, open = null;
+
+      if (!K.has()) { $("needKey").classList.remove("hidden"); return; }
+      $("app").classList.remove("hidden");
+
+      const npubOf = (pk) => Pergamon.bech32Encode("npub", window.nobleNostr.hexToBytes(pk));
+      const short = (pk) => npubOf(pk).slice(0, 14) + "…";
+      const nameOf = (pk) => pk === K.pubkey() ? "You (notes to self)"
+        : (names[pk] && (names[pk].name || (names[pk].username && "@" + names[pk].username))) || short(pk);
+      const other = (m) => m.mine ? (m.to[0] || m.from) : m.from;
+
+      async function loadNames(keys) {
+        const want = keys.filter((k) => !(k in names));
+        if (!want.length) return;
+        try {
+          const r = await (await fetch("/api/people?pubkeys=" + want.join(","))).json();
+          want.forEach((k) => { names[k] = r.people[k] || null; });
+        } catch (e) { /* names are a nicety */ }
+      }
+
+      function renderList() {
+        const box = $("convos");
+        const byPerson = {};
+        msgs.forEach((m) => { (byPerson[other(m)] = byPerson[other(m)] || []).push(m); });
+        const people = Object.keys(byPerson).sort((a, b) =>
+          byPerson[b][byPerson[b].length - 1].created_at - byPerson[a][byPerson[a].length - 1].created_at);
+        box.innerHTML = "";
+        if (!people.length) { box.appendChild(el("p", "muted", "No messages yet. Write to someone by their username.")); return; }
+        people.forEach((pk) => {
+          const last = byPerson[pk][byPerson[pk].length - 1];
+          const row = el("div", "listing convo");
+          row.appendChild(el("strong", "", nameOf(pk)));
+          row.appendChild(el("div", "muted small", (last.mine ? "You: " : "") + last.text.slice(0, 80)));
+          row.addEventListener("click", () => showThread(pk));
+          box.appendChild(row);
+        });
+      }
+
+      function renderThread() {
+        if (!open) return;
+        $("threadName").textContent = nameOf(open);
+        const box = $("thread");
+        box.innerHTML = "";
+        msgs.filter((m) => other(m) === open).forEach((m) => {
+          const b = el("div", "bubble " + (m.mine ? "mine" : "theirs"));
+          b.appendChild(el("div", "", m.text));
+          b.appendChild(el("div", "muted small", new Date(m.created_at * 1000).toLocaleString()));
+          box.appendChild(b);
+        });
+        box.lastChild && box.lastChild.scrollIntoView({ block: "nearest" });
+      }
+
+      function showThread(pk) {
+        open = pk;
+        $("to").value = names[pk] && names[pk].username ? names[pk].username
+          : npubOf(pk);
+        $("listView").classList.add("hidden");
+        $("threadView").classList.remove("hidden");
+        renderThread();
+        $("text").focus();
+      }
+      $("back").addEventListener("click", () => {
+        open = null; $("to").value = "";
+        $("threadView").classList.add("hidden");
+        $("listView").classList.remove("hidden");
+      });
+
+      async function refresh() {
+        try {
+          msgs = await M.inbox();
+          await loadNames([...new Set(msgs.map(other))]);
+          renderList(); renderThread();
+        } catch (e) { $("status").textContent = "Couldn't check messages: " + e.message; }
+      }
+
+      async function resolve(to) {
+        to = to.trim().replace(/^@/, "");
+        if (to.startsWith("npub1")) return window.nobleNostr.bytesToHex(Pergamon.bech32Decode(to, "npub"));
+        const r = await fetch("/api/people?username=" + encodeURIComponent(to));
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || "No one by that name.");
+        names[d.pubkey] = { username: d.username, name: d.name };
+        return d.pubkey;
+      }
+
+      $("compose").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const text = $("text").value.trim();
+        if (!text || !$("to").value.trim()) return;
+        $("status").textContent = "Sending…";
+        try {
+          const pk = await resolve($("to").value);
+          await M.send(pk, text);
+          $("text").value = "";
+          $("status").textContent = "Sent.";
+          await refresh();
+          showThread(pk);
+        } catch (err) { $("status").textContent = err.message; }
+      });
+
+      refresh();
+      setInterval(() => { if (!document.hidden) refresh(); }, 20000);
+    })();
+  </script>
+{% endblock %}

@@ -9,7 +9,7 @@ const BASE = process.argv[2];
 function phone() {
   const store = {};
   const ctx = {
-    crypto: webcrypto,
+    crypto: webcrypto, btoa, atob, TextDecoder,
     fetch: (url, opts) => fetch(BASE + url, opts),
     localStorage: {
       getItem: (k) => (k in store ? store[k] : null),

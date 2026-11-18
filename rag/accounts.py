@@ -95,6 +95,12 @@ class Accounts:
                              "WHERE username=?", (normalize(username, strict=False),)).fetchone()
         return Account(*row) if row else None
 
+    def by_pubkey(self, pubkey: str) -> Account | None:
+        with self._db() as db:
+            row = db.execute("SELECT username, pubkey, name, salt, log_n, ncryptsec FROM accounts "
+                             "WHERE pubkey=?", (pubkey,)).fetchone()
+        return Account(*row) if row else None
+
     def sign_in(self, username: str, auth: str, client: str, now: float | None = None) -> Account:
         """The account, if `auth` is right. Repeated wrong tries from one device,
         or against one account, are refused for a while (guessing online is

@@ -216,6 +216,12 @@ Every app has the same bar at the top; tap **‹ Pergamon** to go back home.
   phone* stores no key on the hub. Wrong passwords are limited to 8 per 15
   minutes per account and per device. The crypto bundle is rebuilt with
   `scripts/build-vendor-bundle.sh` (pinned versions).
+- Messages (✉️) — private messages to anyone by username or npub. Phones
+  encrypt them end to end (NIP-17: NIP-44 inside a gift wrap signed by a
+  throwaway key), so the hub stores sealed envelopes it can't open. Sync and
+  USB bundles carry them to other hubs; the outside of each shows only who
+  it's for, never who sent it, and times are blurred by up to two days. The
+  inbox only opens for a fresh note signed by the recipient's key.
 - Moderation (host only) — on the hub machine, Board, Classifieds and Skills
   cards show *Hide* and *Block author*; the 🛡️ Moderation app lists what's
   hidden and blocked, with undo. Hidden or blocked content disappears from

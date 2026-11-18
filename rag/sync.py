@@ -18,8 +18,10 @@ carry a bundle without being able to alter or forge anyone's posts. Relays
 de-duplicate by event id, so syncing the same data twice is harmless.
 
 What gets synced: community-board posts, classifieds, trade receipts,
-library catalogs, skill/service listings, and profiles. Not DMs (kind 4) — those should go to
-their recipient directly.
+library catalogs, skill/service listings, profiles, and gift-wrapped private
+messages (NIP-17), so a letter to someone in the next town travels with the
+rest. A wrap names only its recipient; sender, text and true time are inside.
+Never the old readable-metadata DMs (kind 4).
 """
 from __future__ import annotations
 
@@ -43,7 +45,9 @@ from rag.nostr import (
 console = Console()
 
 BOARD_TAG = "pergamon-board"
-SYNC_KINDS = [0, 30402, 30405, 30406, 30407]  # profiles, classifieds, receipts, catalogs, skills
+# profiles, classifieds, receipts, catalogs, skills, and gift-wrapped private
+# messages (kind 1059: they show only the recipient, never the sender).
+SYNC_KINDS = [0, 30402, 30405, 30406, 30407, 1059]
 DEFAULT_DAYS = 60
 DEFAULT_LIMIT = 5000
 

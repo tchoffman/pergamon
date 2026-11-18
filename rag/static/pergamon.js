@@ -155,6 +155,10 @@
     const k = load();
     if (!k) throw new Error("no key on this device");
     if (unsigned.pubkey !== k.pub) throw new Error("event is not for this device's key");
+    return signWith(k.sec, unsigned);
+  }
+
+  function signWith(secHex, unsigned) {
     const ev = {
       pubkey: unsigned.pubkey, created_at: unsigned.created_at, kind: unsigned.kind,
       tags: unsigned.tags, content: unsigned.content,
@@ -162,8 +166,14 @@
     ev.id = eventId(ev);
     const aux = new Uint8Array(32);
     global.crypto.getRandomValues(aux);
-    ev.sig = N.bytesToHex(N.schnorr.sign(ev.id, k.sec, aux));
+    ev.sig = N.bytesToHex(N.schnorr.sign(ev.id, secHex, aux));
     return ev;
+  }
+
+  function verifyEvent(ev) {
+    try {
+      return eventId(ev) === ev.id && N.schnorr.verify(ev.sig, ev.id, ev.pubkey);
+    } catch (e) { return false; }
   }
 
   async function postJSON(url, body) {
@@ -246,6 +256,130 @@
     signOut() { Keys.forget(); },
   };
 
-  global.Pergamon = { Keys, Account, NIP49, sign, eventId, signAndPublish, postJSON,
+  // ── NIP-44 v2: encryption inside private messages ─────────────────────
+  // Spec: https://github.com/nostr-protocol/nips/blob/master/44.md
+  const NIP44 = (function () {
+    const enc = new TextEncoder(), dec = new TextDecoder("utf-8", { fatal: true });
+    const b64 = (u8) => { let s = ""; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); };
+    const unb64 = (str) => { const s = atob(str); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+    function conversationKey(secHex, pubHex) {
+      const shared = N.secp256k1.getSharedSecret(secHex, "02" + pubHex);
+      return N.hkdfExtract(N.sha256, shared.subarray(1, 33), enc.encode("nip44-v2"));
+    }
+    function messageKeys(ck, nonce) {
+      const okm = N.hkdfExpand(N.sha256, ck, nonce, 76);
+      return { key: okm.subarray(0, 32), nonce: okm.subarray(32, 44), hmac: okm.subarray(44, 76) };
+    }
+    function paddedLen(n) {
+      if (n <= 32) return 32;
+      const next = 1 << (Math.floor(Math.log2(n - 1)) + 1);
+      const chunk = next <= 256 ? 32 : next / 8;
+      return chunk * (Math.floor((n - 1) / chunk) + 1);
+    }
+    function pad(text) {
+      const raw = enc.encode(text);
+      if (raw.length < 1 || raw.length > 65535) throw new Error("message must be 1-65535 bytes");
+      const out = new Uint8Array(2 + paddedLen(raw.length));
+      out[0] = raw.length >> 8; out[1] = raw.length & 255; out.set(raw, 2);
+      return out;
+    }
+    function unpad(p) {
+      const n = (p[0] << 8) | p[1];
+      if (n < 1 || p.length !== 2 + paddedLen(n)) throw new Error("invalid padding");
+      return dec.decode(p.subarray(2, 2 + n));
+    }
+    function encrypt(text, ck, nonce) {
+      nonce = nonce || N.randomBytes(32);
+      const k = messageKeys(ck, nonce);
+      const ct = N.chacha20(k.key, k.nonce, pad(text));
+      const mac = N.hmac(N.sha256, k.hmac, N.concatBytes(nonce, ct));
+      return b64(N.concatBytes(Uint8Array.of(2), nonce, ct, mac));
+    }
+    function decrypt(payload, ck) {
+      if (!payload || payload[0] === "#") throw new Error("unknown encryption version");
+      if (payload.length < 132 || payload.length > 87472) throw new Error("invalid payload length");
+      let d;
+      try { d = unb64(payload); } catch (e) { throw new Error("invalid base64"); }
+      if (d.length < 99 || d.length > 65603 || d[0] !== 2) throw new Error("invalid payload");
+      const nonce = d.subarray(1, 33), ct = d.subarray(33, d.length - 32), mac = d.subarray(d.length - 32);
+      const k = messageKeys(ck, nonce);
+      const want = N.hmac(N.sha256, k.hmac, N.concatBytes(nonce, ct));
+      let diff = 0;
+      for (let i = 0; i < 32; i++) diff |= want[i] ^ mac[i];
+      if (diff) throw new Error("invalid MAC");
+      return unpad(N.chacha20(k.key, k.nonce, ct));
+    }
+    return { conversationKey, messageKeys, paddedLen, encrypt, decrypt };
+  })();
+
+  // ── NIP-17 private messages, gift-wrapped (NIP-59) ─────────────────────
+  // rumor (kind 14, unsigned) → seal (kind 13, signed by the sender, encrypted
+  // to the recipient) → gift wrap (kind 1059, signed by a throwaway key, only a
+  // "p" tag for the recipient). Hubs, relays and sync sticks see who a wrap is
+  // for, never who sent it or what it says. Times are blurred up to 2 days.
+  const Messages = (function () {
+    const now = () => Math.floor(Date.now() / 1000);
+    const blurred = () => now() - Math.floor(Math.random() * 2 * 86400);
+    function wrapFor(rumor, senderSec, recipient) {
+      const seal = signWith(senderSec, {
+        pubkey: rumor.pubkey, created_at: blurred(), kind: 13, tags: [],
+        content: NIP44.encrypt(JSON.stringify(rumor), NIP44.conversationKey(senderSec, recipient)) });
+      const eph = N.bytesToHex(N.randomBytes(32));
+      return signWith(eph, {
+        pubkey: N.bytesToHex(N.schnorr.getPublicKey(eph)), created_at: blurred(), kind: 1059,
+        tags: [["p", recipient]],
+        content: NIP44.encrypt(JSON.stringify(seal), NIP44.conversationKey(eph, recipient)) });
+    }
+    /* Gift wraps for the recipient and for yourself (so your other devices
+     * show what you sent). */
+    function build(recipient, text) {
+      const k = load();
+      if (!k) throw new Error("sign in to send messages");
+      if (!/^[0-9a-f]{64}$/.test(recipient)) throw new Error("bad recipient");
+      const rumor = { pubkey: k.pub, created_at: now(), kind: 14, tags: [["p", recipient]], content: text };
+      rumor.id = eventId(rumor);
+      const wraps = [wrapFor(rumor, k.sec, recipient)];
+      if (recipient !== k.pub) wraps.push(wrapFor(rumor, k.sec, k.pub));
+      return wraps;
+    }
+    /* Open a gift wrap addressed to this device's key. Throws if anything is
+     * off, including a seal whose signer isn't the rumor's author (forgery). */
+    function open(wrap) {
+      const k = load();
+      if (!k) throw new Error("no key on this device");
+      if (wrap.kind !== 1059 || !verifyEvent(wrap)) throw new Error("not a valid gift wrap");
+      const seal = JSON.parse(NIP44.decrypt(wrap.content, NIP44.conversationKey(k.sec, wrap.pubkey)));
+      if (seal.kind !== 13 || !verifyEvent(seal)) throw new Error("seal signature doesn't verify");
+      const rumor = JSON.parse(NIP44.decrypt(seal.content, NIP44.conversationKey(k.sec, seal.pubkey)));
+      if (rumor.pubkey !== seal.pubkey) throw new Error("sender mismatch: forged message");
+      if (rumor.kind !== 14 || eventId(rumor) !== rumor.id) throw new Error("not a chat message");
+      const to = rumor.tags.filter((t) => t[0] === "p").map((t) => t[1]);
+      return { id: rumor.id, from: rumor.pubkey, to: to, text: rumor.content, created_at: rumor.created_at,
+               mine: rumor.pubkey === k.pub };
+    }
+    async function send(recipient, text) {
+      for (const w of build(recipient, text)) await postJSON("/api/publish", { event: w });
+    }
+    /* Everything addressed to this key that the hub has. The hub asks for a
+     * fresh signed note first, so no one else can list your wraps. */
+    async function inbox() {
+      const k = load();
+      if (!k) return [];
+      const proof = sign({ pubkey: k.pub, created_at: now(), kind: 27235,
+                           tags: [["purpose", "inbox"]], content: "pergamon inbox" });
+      const res = await postJSON("/api/messages/inbox", { proof: proof });
+      const seen = {}, out = [];
+      for (const w of res.wraps) {
+        try {
+          const m = open(w);
+          if (!seen[m.id]) { seen[m.id] = true; out.push(m); }
+        } catch (e) { /* not for us, damaged, or forged: skip */ }
+      }
+      return out.sort((a, b) => a.created_at - b.created_at);
+    }
+    return { build, open, send, inbox };
+  })();
+
+  global.Pergamon = { Keys, Account, NIP49, NIP44, Messages, verifyEvent, signWith, sign, eventId, signAndPublish, postJSON,
                       bech32Encode, bech32Decode };
 })(typeof window !== "undefined" ? window : globalThis);

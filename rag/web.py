@@ -40,6 +40,7 @@ from rag.identity import (
 from rag.nostr import (
     _load_relays_from_config,
     _publish_many,
+    afetch_events as _nostr_afetch,
     build_event,
     sign_event,
 )
@@ -96,6 +97,7 @@ def _status() -> dict:
 APPS = [
     # (name, path, icon, who sees it: None = everyone, "household", "host")
     ("Ask", "/chat", "💬", None),
+    ("Messages", "/messages", "✉️", None),
     ("Library", "/library", "📚", None),
     ("Board", "/board", "📌", None),
     ("Classifieds", "/classifieds", "🏷️", None),
@@ -1035,6 +1037,9 @@ def draft_profile(body: dict):
                               pubkey_hex=pub))
 
 
+KIND_GIFT_WRAP = 1059
+
+
 def _check_publishable(ev: "_Event") -> None:
     tags = {t[0]: t[1:] for t in ev.tags if t}
     if ev.kind == 1:
@@ -1050,6 +1055,12 @@ def _check_publishable(ev: "_Event") -> None:
     elif ev.kind in (_cl.KIND_CLASSIFIED, _sk.KIND_SKILL, _rc.KIND_RECEIPT, 30406):
         if "d" not in tags:
             raise HTTPException(400, "addressable event needs a d tag")
+    elif ev.kind == KIND_GIFT_WRAP:
+        # A private message: encrypted, signed by a throwaway key, addressed by
+        # exactly one "p" tag. The hub relays it without being able to read it.
+        ps = [t for t in ev.tags if t and t[0] == "p"]
+        if len(ps) != 1 or len(ev.tags) != 1 or not _is_hex_pub(ps[0][1] if len(ps[0]) > 1 else ""):
+            raise HTTPException(400, "a gift wrap needs exactly one recipient tag")
     else:
         raise HTTPException(400, f"kind {ev.kind} is not relayed by this hub")
     if abs(ev.created_at - _time.time()) > 2 * 86400:
@@ -1406,3 +1417,65 @@ def api_moderation_change(request: Request, action: str, body: dict):
     except ValueError as e:
         raise HTTPException(400, str(e))
     raise HTTPException(404, "unknown moderation action")
+
+
+# ─────────────────────────────── messages ───────────────────────────────
+# End-to-end encrypted private messages (NIP-17 gift wraps). Phones encrypt
+# and decrypt; the hub only stores and relays wraps it can't read.
+
+INBOX_LIMIT = 500
+
+
+@app.post("/api/messages/inbox")
+def messages_inbox(body: dict):
+    """Gift wraps addressed to the key that signed `proof` (a fresh note), so
+    nobody can list someone else's mail (even though they couldn't read it)."""
+    proof = (body or {}).get("proof") or {}
+    try:
+        ev = _Event(kind=int(proof["kind"]), content=str(proof["content"]), pubkey=str(proof["pubkey"]),
+                    tags=list(proof["tags"]), created_at=int(proof["created_at"]),
+                    id=str(proof["id"]), sig=str(proof["sig"]))
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(400, "missing proof")
+    if not _verify(ev) or ev.kind != 27235 or ["purpose", "inbox"] not in [list(t) for t in ev.tags]:
+        raise HTTPException(401, "proof doesn't verify")
+    if abs(_time.time() - ev.created_at) > 600:
+        raise HTTPException(401, "proof is stale; check this device's clock")
+    wraps = asyncio.run(_nostr_afetch(_load_relays_from_config(),
+                                      {"kinds": [KIND_GIFT_WRAP], "#p": [ev.pubkey], "limit": INBOX_LIMIT},
+                                      INBOX_LIMIT))
+    return {"wraps": [w.to_json() for w in wraps]}
+
+
+@app.get("/messages", response_class=HTMLResponse)
+def messages_page(request: Request):
+    return templates.TemplateResponse(request, "messages.html", {})
+
+
+@app.get("/api/people")
+def people(username: str = "", pubkeys: str = ""):
+    """Who's who for messaging: a username → its key, or keys → usernames and
+    names (local accounts first, then shared profiles)."""
+    store = _accounts.get_store()
+    if username:
+        acct = store.get(username)
+        if not acct:
+            raise HTTPException(404, "No one by that username on this hub.")
+        return {"pubkey": acct.pubkey, "username": acct.username, "name": acct.name}
+    keys = [k for k in pubkeys.split(",") if _is_hex_pub(k)][:100]
+    out = {}
+    for k in keys:
+        acct = store.by_pubkey(k)
+        if acct:
+            out[k] = {"username": acct.username, "name": acct.name}
+    missing = [k for k in keys if k not in out]
+    if missing:
+        from rag import profiles as _pf
+        try:
+            names = _pf.fetch_names(_load_relays_from_config(), missing)
+        except Exception:
+            names = {}
+        for k in missing:
+            if names.get(k):
+                out[k] = {"username": None, "name": names[k]}
+    return {"people": out}

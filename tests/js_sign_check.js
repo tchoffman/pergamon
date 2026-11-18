@@ -8,7 +8,7 @@ const { webcrypto } = require("crypto");
 
 const store = {};
 const ctx = {
-  crypto: webcrypto,
+  crypto: webcrypto, btoa, atob, TextDecoder,
   localStorage: {
     getItem: (k) => (k in store ? store[k] : null),
     setItem: (k, v) => { store[k] = String(v); },

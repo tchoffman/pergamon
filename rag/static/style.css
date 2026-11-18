@@ -350,3 +350,11 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 form > .row { flex-basis: 100%; }
 .row input, .row textarea { width: 100%; }
 .mod-row { margin-top: 0.4rem; color: var(--muted); }
+
+/* Messages */
+.convo { cursor: pointer; }
+.convo:hover { border-color: var(--accent); }
+.bubble { max-width: 85%; padding: 0.5rem 0.75rem; border-radius: 0.75rem; margin: 0.4rem 0; white-space: pre-wrap; }
+.bubble.mine { margin-left: auto; background: var(--accent-soft); }
+.bubble.theirs { margin-right: auto; border: 1px solid var(--border); }
+#compose textarea { flex-basis: 100%; }

@@ -181,6 +181,24 @@ async function person(browser, name) {
     const cached = await p.evaluate(async () => !!(await caches.match("/offline")));
     check("offline page cached for when the hub is out of reach", cached);
 
+    // Private messages: Rosa writes to Ben by username; Ben reads and replies
+    await p.goto(BASE + "/messages", { waitUntil: "networkidle0" });
+    await p.type("#to", "ben");
+    await p.type("#text", "Can you trade eggs for honey?");
+    await p.click("#compose button");
+    await p.waitForFunction(() => document.getElementById("status").textContent === "Sent.", { timeout: 20000 });
+    await b.goto(BASE + "/messages", { waitUntil: "networkidle0" });
+    await b.waitForFunction(() => document.getElementById("convos").textContent.includes("eggs for honey"), { timeout: 20000 });
+    const fromName = await b.$eval("#convos .convo strong", (n) => n.textContent);
+    check("Ben gets Rosa's message, shown by her name", fromName === "Rosa", fromName);
+    await b.click("#convos .convo");
+    await b.type("#text", "Yes, a jar for a dozen");
+    await b.click("#compose button");
+    await b.waitForFunction(() => document.getElementById("status").textContent === "Sent.", { timeout: 20000 });
+    await p.goto(BASE + "/messages", { waitUntil: "networkidle0" });
+    await p.waitForFunction(() => document.getElementById("convos").textContent.includes("a jar for a dozen"), { timeout: 20000 });
+    check("Rosa sees Ben's reply", true);
+
     // Sign in as Rosa on a second phone with just username + password
     const ctx2 = await browser.createBrowserContext();
     const p2 = await ctx2.newPage();
