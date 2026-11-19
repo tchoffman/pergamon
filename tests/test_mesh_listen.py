@@ -252,3 +252,34 @@ def test_hub_radio_is_found_by_id_not_port():
     assert port == "/dev/b" and not iface.closed
     assert FakeIface.opened[0].closed  # Yellow was checked and let go
     assert listen.find_radio("!red", Module, ["/dev/a"]) is None
+
+
+def test_mail_job_then_question_and_worker_survives_failures(monkeypatch):
+    """Regression: a mail job (text None) crashed the worker thread, and with it
+    every radio reply until restart."""
+    import queue
+    import threading
+    from modules.comms.meshtastic import listen
+    done = []
+    jobs = queue.Queue()
+    monkeypatch.setattr(listen, "_deliver_mail", lambda iface, who: done.append(("mail", who)))
+    monkeypatch.setattr(listen, "_reply", lambda iface, who, reply: done.append(("reply", reply.answer)))
+    real_run = listen._run_job
+    calls = {"n": 0}
+
+    def flaky(*job):
+        calls["n"] += 1
+        if calls["n"] == 3:
+            raise RuntimeError("radio unplugged mid-job")
+        return real_run(*job)
+    monkeypatch.setattr(listen, "_run_job", flaky)
+    worker = threading.Thread(target=listen._worker, args=(jobs,), daemon=True)
+    worker.start()
+    jobs.put(("iface", "!blue", None))       # mail
+    jobs.put(("iface", "!yel", "ping"))      # a command
+    jobs.put(("iface", "!x", "boom"))        # this job fails…
+    jobs.put(("iface", "!yel", "ping"))      # …and the worker keeps going
+    jobs.put(listen.STOP)
+    worker.join(5)
+    assert not worker.is_alive()
+    assert done == [("mail", "!blue"), ("reply", "pong"), ("reply", "pong")]

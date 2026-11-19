@@ -267,57 +267,72 @@ def queue_morning_report(interface: Any, now=None) -> bool:
     return True
 
 
-def _worker() -> None:
+STOP = object()  # put on a worker's queue to end it (tests)
+
+
+def _worker(jobs: "queue.Queue | None" = None) -> None:
+    """Runs every radio job, one at a time. Nothing a single job does may stop
+    it: if this thread dies, the hub silently stops answering."""
+    jobs = jobs or _jobs  # bound once: a worker never switches queues
     while True:
-        interface, sender, text = _jobs.get()
-        if text == MORNING:
-            try:
-                _send_morning(interface, sender)
-            except Exception as e:
-                console.print(f"[red]morning report failed: {e!r}[/red]")
-            continue
-        if text.startswith(FEED_PREFIX):
-            try:
-                console.print(f"[cyan]feed → {sender}[/cyan]")
-                _reply(interface, sender, MeshReply(answer=text[len(FEED_PREFIX):], sources=[]))
-            except Exception as e:
-                console.print(f"[red]feed delivery failed: {e!r}[/red]")
-            continue
-        if text is None:  # mail delivery job, not a question
-            try:
-                _deliver_mail(interface, sender)
-            except Exception as e:
-                console.print(f"[red]mail delivery failed: {e!r}[/red]")
-            finally:
-                with _lock:
-                    _delivering.discard(sender)
-            continue
+        job = jobs.get()
+        if job is STOP:
+            return
         try:
-            if text.strip().lower().rstrip("!.") in ("/new", "new"):
-                conversations.reset(sender)
-                _reply(interface, sender, MeshReply(answer="Started a new conversation.", sources=[]))
-                continue
-            command_reply = _handle_feeds(sender, text)
-            if command_reply is None:
-                command_reply = _handle_msg(interface, sender, text)
-            if command_reply is None:
-                command_reply = commands.run(text)
-            if command_reply is not None:
-                _reply(interface, sender, MeshReply(answer=command_reply, sources=[]))
-            else:
-                reply = ask(text, history=conversations.history(sender))
-                conversations.add(sender, text, reply.answer)
-                _reply(interface, sender, reply)
+            _run_job(*job)
+        except Exception as e:  # noqa: BLE001
+            console.print(f"[red]radio job failed: {e!r}[/red]")
+
+
+def _run_job(interface: Any, sender: str, text: str | None) -> None:
+    if text is None:  # mail delivery job, not a question
+        try:
+            _deliver_mail(interface, sender)
         except Exception as e:
-            # Details stay in the local log; the radio gets a plain apology.
-            console.print(f"[red]ask failed: {e!r}[/red]")
-            try:
-                _send_confirmed(interface, sender, SORRY_TEXT)
-            except Exception as e2:
-                console.print(f"[red]could not send apology: {e2!r}[/red]")
+            console.print(f"[red]mail delivery failed: {e!r}[/red]")
         finally:
             with _lock:
-                _pending[sender] = max(0, _pending.get(sender, 1) - 1)
+                _delivering.discard(sender)
+        return
+    if text == MORNING:
+        try:
+            _send_morning(interface, sender)
+        except Exception as e:
+            console.print(f"[red]morning report failed: {e!r}[/red]")
+        return
+    if text.startswith(FEED_PREFIX):
+        try:
+            console.print(f"[cyan]feed → {sender}[/cyan]")
+            _reply(interface, sender, MeshReply(answer=text[len(FEED_PREFIX):], sources=[]))
+        except Exception as e:
+            console.print(f"[red]feed delivery failed: {e!r}[/red]")
+        return
+    try:
+        if text.strip().lower().rstrip("!.") in ("/new", "new"):
+            conversations.reset(sender)
+            _reply(interface, sender, MeshReply(answer="Started a new conversation.", sources=[]))
+            return
+        command_reply = _handle_feeds(sender, text)
+        if command_reply is None:
+            command_reply = _handle_msg(interface, sender, text)
+        if command_reply is None:
+            command_reply = commands.run(text)
+        if command_reply is not None:
+            _reply(interface, sender, MeshReply(answer=command_reply, sources=[]))
+        else:
+            reply = ask(text, history=conversations.history(sender))
+            conversations.add(sender, text, reply.answer)
+            _reply(interface, sender, reply)
+    except Exception as e:
+        # Details stay in the local log; the radio gets a plain apology.
+        console.print(f"[red]ask failed: {e!r}[/red]")
+        try:
+            _send_confirmed(interface, sender, SORRY_TEXT)
+        except Exception as e2:
+            console.print(f"[red]could not send apology: {e2!r}[/red]")
+    finally:
+        with _lock:
+            _pending[sender] = max(0, _pending.get(sender, 1) - 1)
 
 
 def _already_seen(packet: dict) -> bool:
