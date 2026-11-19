@@ -68,7 +68,14 @@ def test_assistant_tool_describes_the_season():
     assert "aren't known" in agent.planting_calendar()
     guide.save_frost(MARIETTA)
     text = agent.planting_calendar()
-    assert "Average last frost 03-27" in text and "NOAA test" in text
+    assert "Average last spring frost: March 27" in text and "NOAA test" in text
+
+
+def test_quiet_season_says_plainly_not_to_plant_now():
+    guide.save_frost(MARIETTA)
+    text = guide.describe_now(dt.date(2026, 11, 19))
+    assert "nothing should be started or sown now" in text
+    assert "Next, starting January 16 (in about 8 weeks): start indoors broccoli" in text
 
 
 @pytest.fixture

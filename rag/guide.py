@@ -197,19 +197,28 @@ def plant_now(today: dt.date | None = None, fr: dict | None = None, ahead_days: 
 
 
 def describe_now(today: dt.date | None = None) -> str:
-    """One paragraph for the assistant or the radio."""
+    """Plain words for the assistant or the radio. Dated and explicit, so a
+    model can't read "from Jan 16" as "now"."""
+    today = today or dt.date.today()
     p = plant_now(today)
     if not p["frost"]:
         return "Frost dates for this hub aren't known yet, so there's no planting calendar."
     fr = p["frost"]
-    lines = [f"Average last frost {fr['last']}, first frost {fr['first']} ({fr['source']})."]
+    lines = [f"Today is {today:%B %-d}. Average last spring frost: {_date(today.year, fr['last']):%B %-d}; "
+             f"average first fall frost: {_date(today.year, fr['first']):%B %-d} ({fr['source']})."]
     if p["now"]:
-        lines.append("Now: " + "; ".join(f"{w['label'].lower()} {w['crop'].lower()}" for w in p["now"]) + ".")
+        lines.append("In its planting window this week: " + "; ".join(
+            f"{w['label'].lower()} {w['crop'].lower()} (until {w['end']:%B %-d})" for w in p["now"]) + ".")
     else:
-        lines.append("Nothing is in its usual planting window this week.")
-    if p["soon"]:
-        lines.append("Coming up: " + "; ".join(
-            f"{w['label'].lower()} {w['crop'].lower()} from {w['start']:%b %-d}" for w in p["soon"]) + ".")
+        lines.append("Nothing is in its planting window this week, so nothing should be started or "
+                     "sown now.")
+    by_date: dict = {}
+    for w in p["soon"]:
+        by_date.setdefault(w["start"], []).append(f"{w['label'].lower()} {w['crop'].lower()}")
+    for start, items in sorted(by_date.items()):
+        weeks = max(1, round((start - today).days / 7))
+        lines.append(f"Next, starting {start:%B %-d} (in about {weeks} week{'s' if weeks != 1 else ''}): "
+                     + "; ".join(items) + ".")
     return " ".join(lines)
 
 

@@ -227,3 +227,28 @@ def test_meta_sentence_with_amounts_is_kept():
 def test_echoed_prompt_heading_is_removed():
     from modules.comms.meshtastic.common import drop_meta
     assert drop_meta("VERIFIED SAFETY FACTS — Slice every puffball.", "x") == "Slice every puffball."
+
+
+def test_hub_radio_is_found_by_id_not_port():
+    from modules.comms.meshtastic import listen
+
+    class FakeIface:
+        def __init__(self, devPath):
+            if devPath == "/dev/busy":
+                raise OSError("Resource busy")
+            self.devPath, self.closed = devPath, False
+            FakeIface.opened.append(self)
+
+        def getMyNodeInfo(self):
+            return {"user": {"id": {"/dev/a": "!yellow", "/dev/b": "!orange"}[self.devPath]}}
+
+        def close(self):
+            self.closed = True
+    FakeIface.opened = []
+
+    class Module:
+        SerialInterface = FakeIface
+    port, iface = listen.find_radio("!orange", Module, ["/dev/busy", "/dev/a", "/dev/b"])
+    assert port == "/dev/b" and not iface.closed
+    assert FakeIface.opened[0].closed  # Yellow was checked and let go
+    assert listen.find_radio("!red", Module, ["/dev/a"]) is None

@@ -420,6 +420,36 @@ def _on_receive(packet: dict, interface) -> None:
     _jobs.put((interface, sender, text))
 
 
+def _hub_node_id() -> str | None:
+    """comms.meshtastic.hub_node_id: which radio is the hub's own."""
+    from rag.install_config import INSTALL_LOCAL_PATH, load_yaml
+    local = load_yaml(INSTALL_LOCAL_PATH) if INSTALL_LOCAL_PATH.exists() else {}
+    return ((local.get("comms") or {}).get("meshtastic") or {}).get("hub_node_id")
+
+
+def serial_ports() -> list[str]:
+    import glob
+    return sorted(glob.glob("/dev/cu.usbserial-*") + glob.glob("/dev/cu.usbmodem*")
+                  + glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*"))
+
+
+def find_radio(node_id: str, serial_iface, ports: list[str] | None = None):
+    """(port, open interface) for the radio with this node ID, else None.
+    Other radios that are plugged in are opened, checked and closed again."""
+    for p in ports if ports is not None else serial_ports():
+        try:
+            iface = serial_iface.SerialInterface(devPath=p)
+        except Exception:  # busy (another program has it) or not a radio
+            continue
+        try:
+            if (iface.getMyNodeInfo() or {}).get("user", {}).get("id") == node_id:
+                return p, iface
+        except Exception:
+            pass
+        iface.close()
+    return None
+
+
 def main() -> int:
     try:
         import meshtastic.serial_interface as serial_iface
@@ -433,8 +463,15 @@ def main() -> int:
         return 1
 
     port = os.environ.get("MESHTASTIC_PORT")  # /dev/tty.usbserial-* on mac
+    hub_id = _hub_node_id()
 
     def open_radio():
+        if hub_id:  # find the hub's own radio by its ID: USB port numbers change on replug
+            found = find_radio(hub_id, serial_iface)
+            if found:
+                console.print(f"[cyan]hub radio {hub_id} found on {found[0]}[/cyan]")
+                return found[1]
+            raise RuntimeError(f"the hub radio {hub_id} isn't connected by USB")
         console.print(f"[cyan]opening Meshtastic serial interface[/cyan] (port={port or 'auto'})")
         return serial_iface.SerialInterface(devPath=port) if port else serial_iface.SerialInterface()
 
