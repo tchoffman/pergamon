@@ -1,0 +1,54 @@
+{% extends "_base.html" %}
+{% block title %}Pergamon · Radios{% endblock %}
+{% block app_name %}<span class="app-name">Radios</span>{% endblock %}
+{% block content %}
+  <p class="muted">Radios plugged into this hub by USB. A <strong>Pergamon radio</strong> answers
+    questions, commands and mail; any other radio (a handheld on the charger, a spare) is left
+    alone. You can run several Pergamon radios at once.</p>
+  {% if not listening %}
+  <p class="warn">The radio listener isn't running, so plugged-in radios aren't being checked.
+    Start it with <code>pergamon mesh listen</code>.</p>
+  {% endif %}
+
+  <section>
+    <h2>Plugged in</h2>
+    {% for r in connected %}
+    <div class="listing">
+      <strong>{{ r.name or "Unnamed radio" }}</strong> <span class="muted mono small">{{ r.id }}</span>
+      <div class="muted small">{{ r.port }} ·
+        {% if r.role == "server" %}<span class="ok">Pergamon radio, answering</span>
+        {% elif r.role == "client" %}left alone
+        {% else %}<strong>new: choose below</strong>{% endif %}</div>
+      <div class="actions">
+        {% if r.role != "server" %}<button class="small-btn role" data-id="{{ r.id }}" data-role="server">Make it a Pergamon radio</button>{% endif %}
+        {% if r.role != "client" %}<button class="small-btn secondary role" data-id="{{ r.id }}" data-role="client">Leave it alone</button>{% endif %}
+      </div>
+    </div>
+    {% else %}
+    <p class="muted">No radios plugged in{% if not listening %} (or the listener isn't running){% endif %}.</p>
+    {% endfor %}
+  </section>
+
+  {% if others %}
+  <section>
+    <h2>Known, not plugged in</h2>
+    {% for id, r in others.items() %}
+    <div class="listing">
+      <strong>{{ r.name or id }}</strong> <span class="muted mono small">{{ id }}</span>
+      <div class="muted small">{{ "Pergamon radio" if r.role == "server" else "left alone" }}
+        · <button class="linklike role" data-id="{{ id }}" data-role="forget">forget</button></div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+{% endblock %}
+{% block scripts %}
+  <script>
+    document.querySelectorAll(".role").forEach((b) => b.addEventListener("click", async () => {
+      const r = await fetch("/api/radios/role", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: b.dataset.id, role: b.dataset.role }) });
+      if (!r.ok) { alert((await r.json().catch(() => ({}))).detail || r.statusText); return; }
+      setTimeout(() => location.reload(), b.dataset.role === "server" ? 6000 : 300);  // the listener scans every 5 s
+    }));
+  </script>
+{% endblock %}

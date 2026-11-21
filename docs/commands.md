@@ -372,5 +372,5 @@ is set in `config/install.local.yaml` for a household network.
 | `OLLAMA_HOST` | `http://localhost:11434` | Point at a different Ollama instance |
 | `ZIM_LIMIT` | unlimited | Cap articles per ZIM in `make zim-index` |
 | `VW_ADMIN_TOKEN` | unset | Vaultwarden admin panel token at service startup |
-| `MESHTASTIC_PORT` | auto-detect | Override USB device for `pergamon mesh listen` |
+| `MESHTASTIC_PORT` | none | Always serve the radio on this port (otherwise roles come from `pergamon radios`) |
 | `DRY_RUN=1` | — | `scripts/fetch-corpus.sh` prints the plan but doesn't fetch |

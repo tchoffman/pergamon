@@ -115,6 +115,8 @@ MAIL_RETRY_S = 900
 # every loop), or there has been total silence for an hour (a quiet mesh is
 # normal for minutes at a time, so silence alone needs a long fuse).
 SILENCE_RECONNECT_S = 3600
+SCAN_S = 5            # how often to look for radios plugged in or pulled out
+_manager = None       # the RadioManager, once main() runs
 
 
 def _reader_dead(iface: Any) -> bool:
@@ -375,7 +377,13 @@ def on_receive(packet: dict, interface) -> None:
     Never lets an exception escape: this runs on the radio's reader thread,
     and an exception there can leave the listener running but deaf.
     """
+    # Only server radios answer. A radio opened briefly to read its ID (a
+    # handheld on the charger, an undecided radio) must never reply as Pergamon.
+    if _manager is not None and not _manager.serves(interface):
+        return
     _last_packet[0] = time.time()
+    if _manager is not None:
+        _manager.heard(interface)
     try:
         _log_new_node(packet, interface)
         _on_receive(packet, interface)
@@ -435,34 +443,10 @@ def _on_receive(packet: dict, interface) -> None:
     _jobs.put((interface, sender, text))
 
 
-def _hub_node_id() -> str | None:
-    """comms.meshtastic.hub_node_id: which radio is the hub's own."""
-    from rag.install_config import INSTALL_LOCAL_PATH, load_yaml
-    local = load_yaml(INSTALL_LOCAL_PATH) if INSTALL_LOCAL_PATH.exists() else {}
-    return ((local.get("comms") or {}).get("meshtastic") or {}).get("hub_node_id")
-
-
 def serial_ports() -> list[str]:
     import glob
     return sorted(glob.glob("/dev/cu.usbserial-*") + glob.glob("/dev/cu.usbmodem*")
                   + glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*"))
-
-
-def find_radio(node_id: str, serial_iface, ports: list[str] | None = None):
-    """(port, open interface) for the radio with this node ID, else None.
-    Other radios that are plugged in are opened, checked and closed again."""
-    for p in ports if ports is not None else serial_ports():
-        try:
-            iface = serial_iface.SerialInterface(devPath=p)
-        except Exception:  # busy (another program has it) or not a radio
-            continue
-        try:
-            if (iface.getMyNodeInfo() or {}).get("user", {}).get("id") == node_id:
-                return p, iface
-        except Exception:
-            pass
-        iface.close()
-    return None
 
 
 def main() -> int:
@@ -477,25 +461,10 @@ def main() -> int:
         console.print("[red]pypubsub not installed (comes with meshtastic)[/red]")
         return 1
 
-    port = os.environ.get("MESHTASTIC_PORT")  # /dev/tty.usbserial-* on mac
-    hub_id = _hub_node_id()
-
-    def open_radio():
-        if hub_id:  # find the hub's own radio by its ID: USB port numbers change on replug
-            found = find_radio(hub_id, serial_iface)
-            if found:
-                console.print(f"[cyan]hub radio {hub_id} found on {found[0]}[/cyan]")
-                return found[1]
-            raise RuntimeError(f"the hub radio {hub_id} isn't connected by USB")
-        console.print(f"[cyan]opening Meshtastic serial interface[/cyan] (port={port or 'auto'})")
-        return serial_iface.SerialInterface(devPath=port) if port else serial_iface.SerialInterface()
-
-    try:
-        iface = open_radio()
-    except Exception as e:
-        console.print(f"[red]no device found: {e}[/red]")
-        console.print("Try:  pergamon mesh mock      # develop without a radio")
-        return 1
+    from modules.comms.meshtastic.manager import RadioManager
+    global _manager
+    _manager = RadioManager(serial_iface, serial_ports, lambda m: console.print(f"[cyan]{m}[/cyan]"),
+                            silence_s=SILENCE_RECONNECT_S, fixed_port=os.environ.get("MESHTASTIC_PORT"))
 
     allowed = _load_allowed_nodes()
     if allowed:
@@ -503,60 +472,39 @@ def main() -> int:
     else:
         console.print("[yellow]no allowlist set — responding to all DMs[/yellow]")
 
-    lost = threading.Event()
-
     def on_lost(interface, topic=pub.AUTO_TOPIC) -> None:
-        lost.set()
+        _manager.lost(interface)
 
     threading.Thread(target=_worker, daemon=True).start()
     pub.subscribe(on_receive, "meshtastic.receive")
     pub.subscribe(on_lost, "meshtastic.connection.lost")
 
-    console.print("[green]ready. ctrl-c to quit.[/green]")
+    console.print("[green]ready. ctrl-c to quit. Watching USB for radios.[/green]")
+    next_scan = 0.0
     next_mail_try = time.time() + 30
     next_morning_check = time.time() + 5
     try:
         while True:
-            if time.time() >= next_morning_check and not lost.is_set():
-                next_morning_check = time.time() + 30
-                try:
-                    queue_morning_report(iface)
-                except Exception as e:
-                    console.print(f"[red]morning report check failed: {e!r}[/red]")
-                try:
-                    queue_feeds(iface)
-                except Exception as e:
-                    console.print(f"[red]feeds check failed: {e!r}[/red]")
-            if time.time() >= next_mail_try and not lost.is_set():
-                next_mail_try = time.time() + MAIL_RETRY_S
-                retry_waiting_mail(iface)
-            if not lost.is_set() and _reader_dead(iface):
-                console.print("[red]radio reader thread stopped[/red]")
-                lost.set()
-            if time.time() - _last_packet[0] > SILENCE_RECONNECT_S and not lost.is_set():
-                console.print(f"[red]no packets from the radio for {SILENCE_RECONNECT_S // 60} min[/red]")
-                lost.set()
-            # A dropped USB cable or radio reboot shows up as connection.lost;
-            # keep trying to reopen instead of sitting deaf.
-            if lost.wait(1):
-                console.print("[red]radio connection lost; reconnecting...[/red]")
-                try:
-                    iface.close()
-                except Exception:
-                    pass
-                while True:
-                    time.sleep(RECONNECT_DELAY_S)
+            now = time.time()
+            if now >= next_scan:
+                next_scan = now + SCAN_S
+                _manager.check_health(_reader_dead)
+                _manager.scan()
+            radio = _manager.primary()
+            if radio is not None and now >= next_morning_check:
+                next_morning_check = now + 30
+                for name, fn in (("morning report", queue_morning_report), ("feeds", queue_feeds)):
                     try:
-                        iface = open_radio()
-                        _last_packet[0] = time.time()
-                        lost.clear()
-                        console.print("[green]reconnected. ready.[/green]")
-                        break
+                        fn(radio)
                     except Exception as e:
-                        console.print(f"[dim]  still no radio ({e}); retrying[/dim]")
+                        console.print(f"[red]{name} check failed: {e!r}[/red]")
+            if radio is not None and now >= next_mail_try:
+                next_mail_try = now + MAIL_RETRY_S
+                retry_waiting_mail(radio)
+            time.sleep(1)
     except KeyboardInterrupt:
         console.print("\n[dim]closing[/dim]")
-        iface.close()
+        _manager.close_all()
     return 0
 
 

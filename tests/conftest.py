@@ -34,3 +34,10 @@ def _guide_offline(tmp_path, monkeypatch):
         raise guide.GuideError("no network in tests")
     monkeypatch.setattr(guide, "_real_fetch_frost", guide.fetch_frost, raising=False)
     monkeypatch.setattr(guide, "fetch_frost", offline)
+
+
+@pytest.fixture(autouse=True)
+def _radios_out_of_build(tmp_path, monkeypatch):
+    from rag import radios
+    monkeypatch.setattr(radios, "PATH", tmp_path / "radios.json")
+    monkeypatch.setattr(radios, "CONNECTED_PATH", tmp_path / "radios_connected.json")

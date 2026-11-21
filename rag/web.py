@@ -110,6 +110,7 @@ APPS = [
     ("Forms", "/forms", "📝", None),
     ("Moderation", "/moderation", "🛡️", "host"),
     ("Hubs", "/hubs", "🔗", "host"),
+    ("Radios", "/radios", "📻", "host"),
 ]
 
 
@@ -1612,4 +1613,31 @@ def draft_place(body: dict):
         return _draft(guide.build_place_note(pub, str(body.get("place", "")), str(body.get("note", "")),
                                              str(body.get("category") or "other"), str(body.get("location") or "")))
     except guide.GuideError as e:
+        raise HTTPException(400, str(e))
+
+
+# ─────────────────────────────── radios ───────────────────────────────
+
+@app.get("/radios", response_class=HTMLResponse)
+def radios_page(request: Request):
+    from rag import radios
+    _moderator_only(request)
+    now = radios.connected()
+    ids = {r["id"] for r in now}
+    return templates.TemplateResponse(request, "radios.html", {
+        "connected": now, "listening": bool(now) or radios._read(radios.CONNECTED_PATH).get("updated", 0) > _time.time() - 120,
+        "others": {k: v for k, v in radios.known().items() if k not in ids}})
+
+
+@app.post("/api/radios/role")
+def radios_role(request: Request, body: dict):
+    from rag import radios
+    _moderator_only(request)
+    body = body or {}
+    try:
+        if body.get("role") == "forget":
+            return {"forgotten": radios.forget(str(body.get("id", "")))}
+        name = next((r["name"] for r in radios.connected() if r["id"] == body.get("id")), "")
+        return radios.set_role(str(body.get("id", "")), str(body.get("role", "")), name)
+    except ValueError as e:
         raise HTTPException(400, str(e))

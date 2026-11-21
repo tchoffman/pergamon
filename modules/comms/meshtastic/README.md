@@ -6,9 +6,21 @@ Let a Meshtastic node send a DM to this pergamon and get a RAG-synthesized answe
 
 ```bash
 pergamon mesh mock              # dev mode: stdin → chunked answer, no radio
-pergamon mesh listen            # production mode: USB-attached node
-MESHTASTIC_PORT=/dev/tty.usbserial-0001 pergamon mesh listen
+pergamon mesh listen            # production mode: watches USB for radios
+pergamon radios                 # which radios are plugged in, and their roles
+pergamon radios serve <id>      # make a radio a Pergamon (server) radio
+pergamon radios client <id>     # leave a radio alone (a handheld on the charger)
 ```
+
+Plug in any radio. The listener checks USB every few seconds and reads each
+radio's node ID. **Server** radios answer questions, commands and mail;
+**client** radios are left alone; a radio it hasn't seen before waits until
+the host decides, on the host-only 📻 Radios page or with `pergamon radios`.
+Several server radios can run at once (scheduled sends use the first). Roles
+are remembered per radio (`build/state/radios.json`), so a radio behaves the
+same on any USB port, at home or on the road. A radio that isn't a server
+never replies as Pergamon, even while it's briefly opened to read its ID.
+`MESHTASTIC_PORT=/dev/...` still forces one port to be served.
 
 The reply is auto-chunked to fit Meshtastic's ~240-byte payload with `[p/N]` prefixes so recipients can reassemble.
 
