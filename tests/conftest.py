@@ -42,3 +42,10 @@ def _radios_out_of_build(tmp_path, monkeypatch):
     monkeypatch.setattr(radios, "PATH", tmp_path / "radios.json")
     monkeypatch.setattr(radios, "CONNECTED_PATH", tmp_path / "radios_connected.json")
     monkeypatch.setattr(radios, "REQUEST_PATH", tmp_path / "radios_request.json")
+
+
+@pytest.fixture(autouse=True)
+def _maps_out_of_build(tmp_path, monkeypatch):
+    """Tests get their own maps folder and never download anything."""
+    from rag import maps
+    monkeypatch.setattr(maps, "maps_dir", lambda: tmp_path / "maps")

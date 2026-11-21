@@ -368,3 +368,7 @@ form > .row { flex-basis: 100%; }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .place-note { border-top: 1px solid var(--border); margin-top: 0.5rem; padding-top: 0.4rem; }
 .place-note p { margin: 0.2rem 0; }
+
+/* Maps */
+.map { width: 100%; height: calc(100vh - 13rem); min-height: 320px; border-radius: 0.5rem; }
+main:has(.map) { max-width: none; padding: 0.5rem; }

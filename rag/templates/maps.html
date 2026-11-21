@@ -1,0 +1,54 @@
+{% extends "_base.html" %}
+{% block title %}Pergamon · Maps{% endblock %}
+{% block app_name %}<span class="app-name">Maps</span>{% endblock %}
+{% block head %}
+  {% if installed %}<link rel="stylesheet" href="/maps/web/maplibre-gl.css" />{% endif %}
+{% endblock %}
+{% block content %}
+  {% if installed %}
+    <div id="map" class="map"></div>
+    <p class="muted small">{{ info.radius_mi|round|int }} miles around {{ info.area }} · map data
+      © OpenStreetMap contributors, Protomaps. Works with no internet.</p>
+  {% else %}
+    <p>No offline map is installed on this hub yet.</p>
+    {% if is_host %}
+    <p class="muted">Add one with <code>pergamon maps install "Your Town, ST" 25</code> (a place and a
+      radius in miles), or pick <em>Offline street map</em> in <code>pergamon setup</code>.
+      A 25-mile region is usually a few hundred MB.</p>
+    {% endif %}
+  {% endif %}
+{% endblock %}
+{% block scripts %}
+  {% if installed %}
+  <script src="/maps/web/maplibre-gl.js"></script>
+  <script src="/maps/web/pmtiles.js"></script>
+  <script src="/maps/web/basemaps.js"></script>
+  <script>
+    (function () {
+      const protocol = new pmtiles.Protocol();
+      maplibregl.addProtocol("pmtiles", protocol.tile);
+      const dark = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+      const flavor = dark ? "dark" : "light";
+      const b = {{ info.bbox|tojson }};
+      const map = new maplibregl.Map({
+        container: "map",
+        style: {
+          version: 8,
+          glyphs: location.origin + "/maps/web/fonts/{fontstack}/{range}.pbf",
+          sprite: location.origin + "/maps/web/sprites/" + flavor,
+          sources: { protomaps: { type: "vector", url: "pmtiles://" + location.origin + "/maps/region.pmtiles",
+                                  attribution: "© OpenStreetMap, Protomaps" } },
+          layers: basemaps.layers("protomaps", basemaps.namedFlavor(flavor), { lang: "en" }),
+        },
+        bounds: [[b[0], b[1]], [b[2], b[3]]],
+        maxBounds: [[b[0] - 0.5, b[1] - 0.5], [b[2] + 0.5, b[3] + 0.5]],
+        maxZoom: {{ info.max_zoom + 3 }},
+      });
+      map.addControl(new maplibregl.NavigationControl(), "top-right");
+      map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: true }), "top-right");
+      map.addControl(new maplibregl.ScaleControl({ unit: "imperial" }));
+      window.pergamonMap = map;
+    })();
+  </script>
+  {% endif %}
+{% endblock %}

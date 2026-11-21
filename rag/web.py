@@ -100,6 +100,7 @@ APPS = [
     ("Messages", "/messages", "✉️", None),
     ("Library", "/library", "📚", None),
     ("Guide", "/guide", "🧭", None),
+    ("Maps", "/maps", "🗺️", None),
     ("Board", "/board", "📌", None),
     ("Classifieds", "/classifieds", "🏷️", None),
     ("Skills", "/skills", "🛠️", None),
@@ -1651,3 +1652,34 @@ def radios_preset(request: Request, body: dict):
         return {"requested": radios.request_preset(str((body or {}).get("preset", "")))}
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+# ─────────────────────────────── maps ───────────────────────────────
+
+@app.get("/maps", response_class=HTMLResponse)
+def maps_page(request: Request):
+    from rag import maps
+    return templates.TemplateResponse(request, "maps.html", {
+        "installed": maps.installed(), "info": maps.region_info() or {}, "is_host": _is_host(request)})
+
+
+@app.get("/maps/region.pmtiles", include_in_schema=False)
+def maps_tiles():
+    """The region's map file; the viewer reads it in byte ranges."""
+    from fastapi.responses import FileResponse
+    from rag import maps
+    if not maps.tiles_path().exists():
+        raise HTTPException(404, "no offline map installed")
+    return FileResponse(maps.tiles_path(), media_type="application/octet-stream",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/maps/web/{path:path}", include_in_schema=False)
+def maps_web(path: str):
+    from fastapi.responses import FileResponse
+    from rag import maps
+    root = maps.web_dir().resolve()
+    target = (root / path).resolve()
+    if not target.is_relative_to(root) or not target.is_file():
+        raise HTTPException(404, "not found")
+    return FileResponse(target, headers={"Cache-Control": "public, max-age=604800"})
