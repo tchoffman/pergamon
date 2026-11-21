@@ -41,3 +41,4 @@ def _radios_out_of_build(tmp_path, monkeypatch):
     from rag import radios
     monkeypatch.setattr(radios, "PATH", tmp_path / "radios.json")
     monkeypatch.setattr(radios, "CONNECTED_PATH", tmp_path / "radios_connected.json")
+    monkeypatch.setattr(radios, "REQUEST_PATH", tmp_path / "radios_request.json")

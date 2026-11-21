@@ -15,7 +15,7 @@
     {% for r in connected %}
     <div class="listing">
       <strong>{{ r.name or "Unnamed radio" }}</strong> <span class="muted mono small">{{ r.id }}</span>
-      <div class="muted small">{{ r.port }} ·
+      <div class="muted small">{{ r.port }} · {{ r.preset or "?" }} ·
         {% if r.role == "server" %}<span class="ok">Pergamon radio, answering</span>
         {% elif r.role == "client" %}left alone
         {% else %}<strong>new: choose below</strong>{% endif %}</div>
@@ -28,6 +28,19 @@
     <p class="muted">No radios plugged in{% if not listening %} (or the listener isn't running){% endif %}.</p>
     {% endfor %}
   </section>
+
+  {% if connected %}
+  <section>
+    <h2>Mesh preset</h2>
+    <p class="muted small">Every radio in a mesh must use the same preset. Atlanta's mesh uses
+      MediumFast; most of North Texas uses LongFast. This switches every radio plugged in here
+      (each restarts, about a minute); radios on battery must be switched separately.</p>
+    <div class="actions">
+      <button class="small-btn preset" data-preset="longfast">Switch all to LongFast</button>
+      <button class="small-btn preset" data-preset="mediumfast">Switch all to MediumFast</button>
+    </div>
+  </section>
+  {% endif %}
 
   {% if others %}
   <section>
@@ -44,6 +57,13 @@
 {% endblock %}
 {% block scripts %}
   <script>
+    document.querySelectorAll(".preset").forEach((b) => b.addEventListener("click", async () => {
+      if (!confirm("Switch every radio plugged in here to " + b.textContent.replace("Switch all to ", "") + "?")) return;
+      const r = await fetch("/api/radios/preset", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preset: b.dataset.preset }) });
+      if (!r.ok) { alert((await r.json().catch(() => ({}))).detail || r.statusText); return; }
+      b.textContent = "Switching… (about a minute)";
+    }));
     document.querySelectorAll(".role").forEach((b) => b.addEventListener("click", async () => {
       const r = await fetch("/api/radios/role", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: b.dataset.id, role: b.dataset.role }) });

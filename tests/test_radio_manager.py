@@ -147,3 +147,60 @@ def test_radios_page_is_host_only_and_sets_roles(monkeypatch):
     monkeypatch.setattr(web, "_is_host", lambda request: False)
     assert c.get("/radios").status_code == 403
     assert c.post("/api/radios/role", json={"id": "!0000000b", "role": "server"}).status_code == 403
+
+
+def test_switch_every_radio_on_usb_to_a_preset(setup, monkeypatch):
+    from types import SimpleNamespace
+    from meshtastic.protobuf import config_pb2
+    P = config_pb2.Config.LoRaConfig.ModemPreset
+    m, plugged, logs = setup
+    loras = {p: SimpleNamespace(use_preset=True, modem_preset=P.MEDIUM_FAST, channel_num=0) for p in RADIOS}
+    written = []
+
+    class PresetIface(FakeIface):
+        def __init__(self, devPath):
+            super().__init__(devPath)
+            self.localNode = SimpleNamespace(localConfig=SimpleNamespace(lora=loras[devPath]),
+                                             writeConfig=lambda what: written.append((devPath, what)))
+    monkeypatch.setattr(Serial, "SerialInterface", PresetIface)
+    loras["/dev/c"].modem_preset = P.LONG_FAST              # Red is already there
+    radios.set_role("!0000000a", "server")
+    radios.set_role("!0000000b", "client")
+    plugged |= {"/dev/a", "/dev/b", "/dev/c"}
+    m.scan()
+    assert {r["id"]: r["preset"] for r in radios.connected()}["!0000000a"] == "MEDIUM_FAST"
+    assert radios.request_preset("Long Fast") == "LONG_FAST"
+    req = radios.take_request()
+    assert req["preset"] == "LONG_FAST" and radios.take_request() is None  # taken once
+    m.apply_preset(req["preset"])
+    assert sorted(written) == [("/dev/a", "lora"), ("/dev/b", "lora")]  # served and left-alone radios
+    assert loras["/dev/a"].modem_preset == P.LONG_FAST and loras["/dev/b"].modem_preset == P.LONG_FAST
+    assert any("already on LONG_FAST" in line for line in logs)
+    assert m.active == {} and m.ids == {}  # all re-read once they've restarted
+    m.scan()
+    assert set(m.active) == {"/dev/a"}
+    with pytest.raises(ValueError):
+        radios.request_preset("ultrafast")
+
+
+def test_preset_request_before_the_first_scan_still_switches(setup, monkeypatch):
+    """Regression: a request that arrived before the listener had seen any
+    radio was used up, switched nothing and said nothing."""
+    from types import SimpleNamespace
+    from meshtastic.protobuf import config_pb2
+    P = config_pb2.Config.LoRaConfig.ModemPreset
+    m, plugged, logs = setup
+    lora = SimpleNamespace(use_preset=True, modem_preset=P.MEDIUM_FAST, channel_num=0)
+
+    class PresetIface(FakeIface):
+        def __init__(self, devPath):
+            super().__init__(devPath)
+            self.localNode = SimpleNamespace(localConfig=SimpleNamespace(lora=lora), writeConfig=lambda w: None)
+    monkeypatch.setattr(Serial, "SerialInterface", PresetIface)
+    plugged.add("/dev/b")
+    m.apply_preset("LONG_FAST")          # no scan has run yet
+    assert lora.modem_preset == P.LONG_FAST
+    assert logs[0] == "switching 1 radio(s) on USB to LONG_FAST"
+    plugged.clear()
+    m.apply_preset("LONG_FAST")
+    assert logs[-1] == "no radios on USB to switch to LONG_FAST"

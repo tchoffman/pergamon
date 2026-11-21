@@ -12,6 +12,7 @@ gets the same role whenever and wherever it's plugged in.
     pergamon radios serve <id>      # make it a Pergamon radio
     pergamon radios client <id>     # leave it alone
     pergamon radios forget <id>     # ask again next time
+    pergamon radios preset longfast # switch every radio on USB (e.g. mediumfast at home)
 """
 from __future__ import annotations
 
@@ -26,6 +27,10 @@ from rag.config import REPO_ROOT
 STATE = REPO_ROOT / "build" / "state"
 PATH = STATE / "radios.json"
 CONNECTED_PATH = STATE / "radios_connected.json"   # written by the listener
+REQUEST_PATH = STATE / "radios_request.json"       # read by the listener
+# Presets people actually pick; every radio in a mesh must use the same one.
+PRESETS = {"longfast": "LONG_FAST", "mediumfast": "MEDIUM_FAST", "mediumslow": "MEDIUM_SLOW",
+           "longmoderate": "LONG_MODERATE", "shortfast": "SHORT_FAST", "shortslow": "SHORT_SLOW"}
 ROLES = ("server", "client")
 _lock = threading.Lock()
 
@@ -107,6 +112,22 @@ def connected() -> list[dict]:
     return [{**r, "role": (regs.get(r["id"]) or {}).get("role")} for r in data.get("radios", [])]
 
 
+def request_preset(name: str) -> str:
+    """Ask the listener to switch every radio on USB to a modem preset."""
+    key = name.lower().replace("_", "").replace("-", "").replace(" ", "")
+    if key not in PRESETS:
+        raise ValueError(f"preset must be one of {', '.join(PRESETS)}")
+    _write(REQUEST_PATH, {"preset": PRESETS[key], "at": int(time.time())})
+    return PRESETS[key]
+
+
+def take_request() -> dict | None:
+    data = _read(REQUEST_PATH)
+    if data:
+        REQUEST_PATH.unlink(missing_ok=True)
+    return data or None
+
+
 def write_connected(radios: list[dict]) -> None:
     _write(CONNECTED_PATH, {"updated": int(time.time()), "radios": radios})
 
@@ -119,7 +140,8 @@ def main(argv: list[str]) -> int:
             if not now:
                 print("No radios reported (is `pergamon mesh listen` running?).")
             for r in now:
-                print(f"  {r['port']:<24} {r['name']:<20} {r['id']}  {r['role'] or 'NOT DECIDED'}")
+                print(f"  {r['port']:<24} {r['name']:<20} {r['id']}  {r['role'] or 'NOT DECIDED':<12} "
+                      f"{r.get('preset') or ''}")
             others = {k: v for k, v in known().items() if k not in {r['id'] for r in now}}
             if others:
                 print("Known, not connected:")
@@ -130,6 +152,11 @@ def main(argv: list[str]) -> int:
             entry = set_role(argv[1], "server" if cmd == "serve" else "client")
             print(f"{argv[1]} is now a {'Pergamon (server)' if cmd == 'serve' else 'client'} radio."
                   + (" The listener picks it up within a few seconds." if cmd == "serve" else ""))
+            return 0
+        if cmd == "preset" and len(argv) > 1:
+            p = request_preset(argv[1])
+            print(f"Asked the listener to switch every radio on USB to {p}. Each restarts (about a "
+                  "minute); check with `pergamon radios`. Radios not on USB must be switched separately.")
             return 0
         if cmd == "forget" and len(argv) > 1:
             print("Forgotten." if forget(argv[1]) else "Not a known radio.")

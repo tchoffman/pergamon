@@ -488,6 +488,12 @@ def main() -> int:
             now = time.time()
             if now >= next_scan:
                 next_scan = now + SCAN_S
+                from rag import radios as _radios
+                req = _radios.take_request()
+                if req and req.get("preset"):
+                    _manager.apply_preset(req["preset"])
+                    next_scan = now + 30  # give them time to restart
+                    continue
                 _manager.check_health(_reader_dead)
                 _manager.scan()
             radio = _manager.primary()

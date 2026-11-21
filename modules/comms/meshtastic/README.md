@@ -10,7 +10,14 @@ pergamon mesh listen            # production mode: watches USB for radios
 pergamon radios                 # which radios are plugged in, and their roles
 pergamon radios serve <id>      # make a radio a Pergamon (server) radio
 pergamon radios client <id>     # leave a radio alone (a handheld on the charger)
+pergamon radios preset longfast # switch every radio on USB to a mesh preset
 ```
+
+Every radio in a mesh must use the same modem preset. Atlanta's mesh uses
+MediumFast; most of North Texas uses LongFast (https://ntxmesh.com/coverage-map/).
+`pergamon radios preset <name>` (or the buttons on the Radios page) asks the
+running listener to switch every radio plugged in by USB; each restarts and is
+picked up again. Radios on battery must be switched separately.
 
 Plug in any radio. The listener checks USB every few seconds and reads each
 radio's node ID. **Server** radios answer questions, commands and mail;

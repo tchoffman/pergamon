@@ -1641,3 +1641,13 @@ def radios_role(request: Request, body: dict):
         return radios.set_role(str(body.get("id", "")), str(body.get("role", "")), name)
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@app.post("/api/radios/preset")
+def radios_preset(request: Request, body: dict):
+    from rag import radios
+    _moderator_only(request)
+    try:
+        return {"requested": radios.request_preset(str((body or {}).get("preset", "")))}
+    except ValueError as e:
+        raise HTTPException(400, str(e))

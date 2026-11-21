@@ -13,6 +13,15 @@ from typing import Any, Callable
 from rag import radios
 
 
+def _preset_name(iface) -> str:
+    try:
+        from meshtastic.protobuf import config_pb2
+        lora = iface.localNode.localConfig.lora
+        return config_pb2.Config.LoRaConfig.ModemPreset.Name(lora.modem_preset) if lora.use_preset else "custom"
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 class RadioManager:
     def __init__(self, serial_iface, list_ports: Callable[[], list[str]], log: Callable[[str], None],
                  silence_s: float = 3600, fixed_port: str | None = None):
@@ -66,7 +75,7 @@ class RadioManager:
         if not node_id:
             iface.close()
             return
-        self.ids[port] = {"id": node_id, "name": name}
+        self.ids[port] = {"id": node_id, "name": name, "preset": _preset_name(iface)}
         r = self._role(port, node_id)
         if r == "server":
             self.active[port] = iface
@@ -78,6 +87,38 @@ class RadioManager:
             self._told.add(node_id)
             self.log(f"new radio {name} {node_id} on {port}: is it a Pergamon radio? Choose on the "
                      f"Radios page, or run: pergamon radios serve {node_id}  (or: client {node_id})")
+
+    def apply_preset(self, preset: str) -> None:
+        """Switch every radio on USB to `preset`. Each one restarts, so all are
+        let go here and picked up again by later scans."""
+        from meshtastic.protobuf import config_pb2
+        value = config_pb2.Config.LoRaConfig.ModemPreset.Value(preset)
+        ports = sorted(self.list_ports())  # whatever is plugged in now, known yet or not
+        self.log(f"switching {len(ports)} radio(s) on USB to {preset}" if ports
+                 else f"no radios on USB to switch to {preset}")
+        for port in ports:
+            iface = self.active.get(port)
+            try:
+                if iface is None:
+                    iface = self.serial_iface.SerialInterface(devPath=port)
+                name = ((iface.getMyNodeInfo() or {}).get("user", {}).get("longName")) or port
+                lora = iface.localNode.localConfig.lora
+                if lora.use_preset and lora.modem_preset == value:
+                    self.log(f"{name} is already on {preset}")
+                else:
+                    lora.use_preset, lora.modem_preset, lora.channel_num = True, value, 0
+                    iface.localNode.writeConfig("lora")
+                    self.log(f"switched {name} on {port} to {preset}; it's restarting")
+            except Exception as e:  # noqa: BLE001
+                self.log(f"couldn't switch the radio on {port}: {e!r}")
+            finally:
+                self.active.pop(port, None)
+                if iface is not None:
+                    try:
+                        iface.close()
+                    except Exception:
+                        pass
+        self.ids.clear()  # re-read everything once they're back
 
     def _drop(self, port: str) -> None:
         iface = self.active.pop(port, None)
