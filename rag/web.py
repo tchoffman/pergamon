@@ -101,6 +101,7 @@ APPS = [
     ("Library", "/library", "📚", None),
     ("Guide", "/guide", "🧭", None),
     ("Maps", "/maps", "🗺️", None),
+    ("Watch & Listen", "/media", "🎬", None),
     ("Board", "/board", "📌", None),
     ("Classifieds", "/classifieds", "🏷️", None),
     ("Skills", "/skills", "🛠️", None),
@@ -1701,3 +1702,34 @@ def maps_web(path: str):
     if not target.is_relative_to(root) or not target.is_file():
         raise HTTPException(404, "not found")
     return FileResponse(target, headers={"Cache-Control": "public, max-age=604800"})
+
+
+# ─────────────────────────────── watch & listen ───────────────────────────────
+
+@app.get("/media", response_class=HTMLResponse)
+def media_page(request: Request):
+    from rag import entertainment as ent
+    return templates.TemplateResponse(request, "media.html", {
+        "library": ent.library(), "kinds": ent.KINDS, "is_host": _is_host(request)})
+
+
+@app.get("/media/{ident}", response_class=HTMLResponse)
+def media_item_page(request: Request, ident: str):
+    from rag import entertainment as ent
+    item = ent.item(ident)
+    if not item:
+        raise HTTPException(404, "not in this hub's library")
+    return templates.TemplateResponse(request, "media_item.html", {"item": item})
+
+
+@app.get("/media/files/{ident}/{name}", include_in_schema=False)
+def media_file(ident: str, name: str):
+    """A film or track, streamed in byte ranges so players can seek."""
+    from fastapi.responses import FileResponse
+    from rag import entertainment as ent
+    item = ent.item(ident)
+    if not item or name not in {f["name"] for f in item["files"]}:
+        raise HTTPException(404, "not found")
+    path = ent.media_dir() / ident / name
+    kind = "video/mp4" if name.endswith(".mp4") else "audio/mpeg"
+    return FileResponse(path, media_type=kind, headers={"Cache-Control": "public, max-age=86400"})

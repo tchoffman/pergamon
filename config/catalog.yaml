@@ -482,6 +482,28 @@ items:
       default: 12
 
   # ── Maps ────────────────────────────────────────────────────────────
+  - id: entertainment
+    title: Entertainment pack (films, audiobooks, music)
+    shelf: entertainment
+    fetcher: entertainment
+    description: >-
+      Classic films (Chaplin, Keaton, His Girl Friday, cartoons), LibriVox
+      audiobooks (Sherlock Holmes, Tom Sawyer, Treasure Island...) and
+      Beethoven symphonies, streamed to phones over the hub's Wi-Fi.
+    options:
+      - name: variant
+        prompt: "How much?"
+        choices:
+          - value: sampler
+            label: "Sampler: 3 films, 2 audiobooks, Beethoven (~1.1 GB)"
+          - value: full
+            label: "Full pack: 6 films, 7 audiobooks, Beethoven (~3.4 GB)"
+    defaults:
+      variant: sampler
+    size_mb_by_variant:
+      sampler: 1100
+      full: 3400
+
   - id: offline-map
     title: Offline street map (viewable in Pergamon)
     shelf: maps

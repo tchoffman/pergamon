@@ -1,0 +1,54 @@
+{% extends "_base.html" %}
+{% block title %}Pergamon · {{ item.title }}{% endblock %}
+{% block app_name %}<span class="app-name"><a href="/media">Watch &amp; Listen</a></span>{% endblock %}
+{% block content %}
+  <h2 class="media-title">{{ item.title }}</h2>
+  <p class="muted small">{{ item.creator }}{% if item.year %} · {{ item.year }}{% endif %}</p>
+  {% if item.kind == "film" %}
+    <video id="player" class="player" controls playsinline preload="metadata"
+      src="/media/files/{{ item.id }}/{{ item.files[0].name|urlencode }}"></video>
+  {% else %}
+    <audio id="player" class="player" controls preload="none"></audio>
+    <ol id="tracks" class="tracks">
+      {% for f in item.files %}
+      <li><button type="button" class="linklike track" data-src="/media/files/{{ item.id }}/{{ f.name|urlencode }}">
+        {{ f.name|replace("_64kb.mp3", "")|replace(".mp3", "")|replace("_", " ") }}</button>
+        {% if f.seconds %}<span class="muted small">{{ (f.seconds / 60)|round|int }} min</span>{% endif %}</li>
+      {% endfor %}
+    </ol>
+  {% endif %}
+  <p class="muted small">From <a href="{{ item.source }}">{{ item.source }}</a>{% if item.license and item.license != "not recorded" %} · {{ item.license }}{% endif %}</p>
+{% endblock %}
+{% block scripts %}
+  {% if item.kind != "film" %}
+  <script>
+    (function () {
+      const player = document.getElementById("player");
+      const tracks = [...document.querySelectorAll(".track")];
+      const key = "pergamon.media.{{ item.id }}";
+      function play(i, at) {
+        if (i < 0 || i >= tracks.length) return;
+        tracks.forEach((t, j) => t.classList.toggle("playing", j === i));
+        player.src = tracks[i].dataset.src;
+        player.dataset.index = i;
+        if (at) player.addEventListener("loadedmetadata", () => { player.currentTime = at; }, { once: true });
+        player.play().catch(() => {});
+      }
+      tracks.forEach((t, i) => t.addEventListener("click", () => play(i)));
+      player.addEventListener("ended", () => play(Number(player.dataset.index) + 1));
+      // Remember where you were in a long audiobook (this device only).
+      player.addEventListener("timeupdate", () => {
+        try { localStorage.setItem(key, JSON.stringify({ i: Number(player.dataset.index), t: player.currentTime })); } catch (e) {}
+      });
+      try {
+        const saved = JSON.parse(localStorage.getItem(key) || "null");
+        if (saved && tracks[saved.i]) {
+          tracks.forEach((t, j) => t.classList.toggle("playing", j === saved.i));
+          player.src = tracks[saved.i].dataset.src; player.dataset.index = saved.i;
+          player.addEventListener("loadedmetadata", () => { player.currentTime = saved.t; }, { once: true });
+        }
+      } catch (e) {}
+    })();
+  </script>
+  {% endif %}
+{% endblock %}

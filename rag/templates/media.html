@@ -1,0 +1,28 @@
+{% extends "_base.html" %}
+{% block title %}Pergamon · Watch & Listen{% endblock %}
+{% block app_name %}<span class="app-name">Watch &amp; Listen</span>{% endblock %}
+{% block content %}
+  {% if not library %}
+    <p>Nothing to watch or listen to yet.</p>
+    {% if is_host %}<p class="muted">Add the Entertainment pack with <code>pergamon media install sampler</code>
+      (about 1 GB) or <code>full</code> (about 3.4 GB), or pick it in <code>pergamon setup</code>.</p>{% endif %}
+  {% endif %}
+  {% for kind, title in kinds.items() %}
+    {% set items = library|selectattr("kind", "equalto", kind)|list %}
+    {% if items %}
+    <section>
+      <h2>{{ title }}</h2>
+      <div class="media-grid">
+        {% for i in items %}
+        <a class="listing media-card" href="/media/{{ i.id }}">
+          <span class="media-icon" aria-hidden="true">{{ {"film": "🎬", "audiobook": "🎧", "music": "🎵"}[kind] }}</span>
+          <strong>{{ i.title }}</strong>
+          <span class="muted small">{{ i.year }}{% if i.files|length > 1 %} · {{ i.files|length }} parts{% endif %}
+            · {{ (i.files|sum(attribute="seconds", start=0) / 60)|round|int }} min</span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+  {% endfor %}
+{% endblock %}

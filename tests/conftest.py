@@ -49,3 +49,9 @@ def _maps_out_of_build(tmp_path, monkeypatch):
     """Tests get their own maps folder and never download anything."""
     from rag import maps
     monkeypatch.setattr(maps, "maps_dir", lambda: tmp_path / "maps")
+
+
+@pytest.fixture(autouse=True)
+def _media_out_of_build(tmp_path, monkeypatch):
+    from rag import entertainment
+    monkeypatch.setattr(entertainment, "media_dir", lambda: tmp_path / "media")

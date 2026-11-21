@@ -88,6 +88,8 @@ for item_id, opts in enable.items():
             continue
         layers = merged_opts.get("layers") or ["streets"]
         env_pairs = [f"OSM_REGIONS={','.join(regions)}", f"OSM_LAYERS={','.join(layers)}"]
+    elif fetcher == "entertainment":
+        env_pairs = [f"MEDIA_PACK={merged_opts.get('variant') or 'sampler'}"]
     elif fetcher == "offline-map":
         regions = merged_opts.get("regions") or []
         if isinstance(regions, str):
