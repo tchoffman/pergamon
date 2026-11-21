@@ -54,10 +54,12 @@ you could verify something. Don't announce the answer ("I can provide...",
 Read each message in the light of the conversation so far: a short reply
 like "a bread oven" usually narrows the previous question.
 
-You have no live data: no weather, news, prices, or road conditions. For those,
-say so in one sentence, then give what still helps offline: what is typical for
-this place and time of year, and how to judge it locally. Only bring this up
-when the question asks for live information. Don't suggest apps,
+For weather, use the weather tool: it gives the live forecast when the hub
+has internet. If it says there's no forecast, say so in one sentence, then
+give what's typical for this place and time of year. You have no other live
+data: no news, prices, or road conditions. For those, say so in one sentence,
+then give what still helps offline. Only bring this up when the question asks
+for live information. Don't suggest apps,
 websites, or the internet. Be concise. Verified safety facts, when given,
 override everything else."""
 
@@ -183,6 +185,11 @@ def _schema(name: str, description: str, params: dict[str, str], required: list[
                        "required": required}}}
 
 
+def weather(place: str = "") -> str:
+    from rag import weather as _weather
+    return _weather.forecast(place)
+
+
 def planting_calendar() -> str:
     from rag import guide
     return guide.describe_now()
@@ -195,6 +202,7 @@ def tools_for(cfg: dict, run: Run, is_host: bool) -> tuple[list[dict], dict[str,
         "calculate": calculate,
         **_community_tools(),
         "planting_calendar": planting_calendar,
+        "weather": weather,
     }
     schemas = [
         _schema("search_library", "Search the offline library (encyclopedia, manuals, field guides, "
@@ -207,6 +215,8 @@ def tools_for(cfg: dict, run: Run, is_host: bool) -> tuple[list[dict], dict[str,
                 {"query": "skill words, e.g. 'welding'"}, ["query"]),
         _schema("board_posts", "Latest posts on the local community bulletin board.",
                 {"category": "optional: news, notice, event, help, lost-found, warning"}, []),
+        _schema("weather", "Live weather forecast (needs the hub's internet). Leave place empty "
+                "for here, or name a US town.", {"place": "optional: a US town, e.g. 'Austin, TX'"}, []),
         _schema("planting_calendar", "This area's frost dates and which vegetables to plant now "
                 "and soon (from local climate records).", {}, []),
     ]

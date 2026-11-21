@@ -4,7 +4,7 @@
 build/
 
 # Per-install user customization (output of `pergamon setup`).
-config/install.local.yaml
+config/install.local*.yaml
 
 # Python
 .venv/

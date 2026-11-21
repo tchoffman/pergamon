@@ -150,12 +150,12 @@ cases:
     must_not: [plant tomatoes now, plant peppers now, eaten like asparagus]
 
   # ── live data the library can't have ─────────────────────────────────
+  # Online: the live forecast (weather tool). Offline: says so, then what's typical.
   - id: weather-today
     question: What is today's weather in Marietta GA?
     must:
-      - [no live, no internet, don't have, do not have, can't, cannot, not able, no access, unable]
-      - [typical, usually, average, normal, tend to]
-    must_not: [drop some grass, toss grass, today's forecast is, it will be sunny, it will rain today]
+      - [forecast, high, low, degrees, "°", typical, usually, average, normal]
+    must_not: [drop some grass, toss grass]
 
   - id: news-today
     question: What's happening in the news today?
