@@ -1,0 +1,39 @@
+# Named map regions for `pergamon maps install "<name>"`. Each is the area
+# covering its places (counties or towns), looked up once at install.
+# Add your own: a name and a list of places the geocoder understands.
+regions:
+  North Texas:
+    # The counties on NTX Mesh's preset map (https://ntxmesh.com/coverage-map/).
+    places:
+      - Tarrant County, Texas
+      - Dallas County, Texas
+      - Denton County, Texas
+      - Collin County, Texas
+      - Parker County, Texas
+      - Johnson County, Texas
+      - Ellis County, Texas
+      - Kaufman County, Texas
+      - Rockwall County, Texas
+      - Wise County, Texas
+      - Hunt County, Texas
+  Dallas-Fort Worth:
+    places:
+      - Tarrant County, Texas
+      - Dallas County, Texas
+      - Denton County, Texas
+      - Collin County, Texas
+  Atlanta Metro:
+    # The core counties of metro Atlanta.
+    places:
+      - Fulton County, Georgia
+      - DeKalb County, Georgia
+      - Cobb County, Georgia
+      - Gwinnett County, Georgia
+      - Clayton County, Georgia
+      - Cherokee County, Georgia
+      - Forsyth County, Georgia
+      - Henry County, Georgia
+      - Douglas County, Georgia
+      - Fayette County, Georgia
+      - Paulding County, Georgia
+      - Rockdale County, Georgia

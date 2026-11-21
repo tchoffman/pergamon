@@ -482,6 +482,26 @@ items:
       default: 12
 
   # ── Maps ────────────────────────────────────────────────────────────
+  - id: offline-map
+    title: Offline street map (viewable in Pergamon)
+    shelf: maps
+    fetcher: offline-map
+    description: >-
+      A pan-and-zoom street map for phones on the hub's Wi-Fi, with no
+      internet: streets, places, parks and water. Describe each region as a
+      town or county, a named region (North Texas, Atlanta Metro), or
+      "lat,lon miles". A metro area is usually 150-250 MB.
+    options:
+      - name: regions
+        prompt: "Which regions? (a town or county, North Texas, Atlanta Metro, or lat,lon miles; separate several with |)"
+        type: string
+        separator: "|"
+        placeholder: "Atlanta Metro"
+    defaults:
+      regions: []
+    size_mb_by_variant:
+      default: 200
+
   - id: usgs-topo
     title: USGS topographic maps (US only)
     shelf: maps

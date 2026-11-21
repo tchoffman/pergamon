@@ -1657,20 +1657,38 @@ def radios_preset(request: Request, body: dict):
 # ─────────────────────────────── maps ───────────────────────────────
 
 @app.get("/maps", response_class=HTMLResponse)
-def maps_page(request: Request):
+def maps_page(request: Request, region: str = ""):
     from rag import maps
+    rs = maps.regions()
+    chosen = next((r for r in rs if r["slug"] == region), None) or _home_region(rs)
     return templates.TemplateResponse(request, "maps.html", {
-        "installed": maps.installed(), "info": maps.region_info() or {}, "is_host": _is_host(request)})
+        "installed": maps.installed(), "regions": rs, "info": chosen or {}, "is_host": _is_host(request)})
 
 
-@app.get("/maps/region.pmtiles", include_in_schema=False)
-def maps_tiles():
-    """The region's map file; the viewer reads it in byte ranges."""
+def _home_region(rs: list[dict]) -> dict | None:
+    """The smallest installed region containing the hub's location, else the largest."""
+    try:
+        from modules.comms.meshtastic.morning import coordinates, settings
+        from rag.weather import morning_location
+        c = coordinates(settings() or {"location": morning_location()})
+    except Exception:  # noqa: BLE001
+        c = None
+    if c:
+        lat, lon = c
+        inside = [r for r in rs if r["bbox"][0] <= lon <= r["bbox"][2] and r["bbox"][1] <= lat <= r["bbox"][3]]
+        if inside:
+            return min(inside, key=lambda r: r.get("bytes", 0))
+    return rs[0] if rs else None
+
+
+@app.get("/maps/regions/{name}.pmtiles", include_in_schema=False)
+def maps_tiles(name: str):
+    """A region's map file; the viewer reads it in byte ranges."""
     from fastapi.responses import FileResponse
     from rag import maps
-    if not maps.tiles_path().exists():
-        raise HTTPException(404, "no offline map installed")
-    return FileResponse(maps.tiles_path(), media_type="application/octet-stream",
+    if maps.slug(name) != name or not maps.tiles_path(name).exists():
+        raise HTTPException(404, "no such map region")
+    return FileResponse(maps.tiles_path(name), media_type="application/octet-stream",
                         headers={"Cache-Control": "public, max-age=86400"})
 
 

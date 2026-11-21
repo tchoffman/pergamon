@@ -372,3 +372,4 @@ form > .row { flex-basis: 100%; }
 /* Maps */
 .map { width: 100%; height: calc(100vh - 13rem); min-height: 320px; border-radius: 0.5rem; }
 main:has(.map) { max-width: none; padding: 0.5rem; }
+.region-pick { margin: 0 0 0.5rem; } .region-pick select { width: 100%; }

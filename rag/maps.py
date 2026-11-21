@@ -6,8 +6,18 @@ it. The hub serves that one file plus the map viewer (MapLibre), its fonts and
 icons, so phones on the hub's Wi-Fi get a normal pan-and-zoom map with no
 internet.
 
-    pergamon maps install "Keller, TX" 25     # region around a place, radius in miles
-    pergamon maps status
+Regions can be described several ways:
+
+    pergamon maps install "Keller, TX"              # a town or county: its own boundary
+    pergamon maps install "Keller, TX" 25           # 25 miles around it
+    pergamon maps install "32.93,-97.23" 25         # lat,lon and a radius
+    pergamon maps install "-97.6,32.5,-96.5,33.4"   # a box: west,south,east,north
+    pergamon maps install "Tarrant County, TX; Dallas County, TX"   # several places together
+    pergamon maps install "North Texas"             # a named region (config/maps/regions.yaml)
+    pergamon maps install "Atlanta Metro" --dry-run # just report the size
+    pergamon maps status | remove <name>
+
+Several regions can be installed; the Maps page lets people pick one.
 """
 from __future__ import annotations
 
@@ -63,27 +73,46 @@ def maps_dir() -> Path:
     return data_dir() / "maps"
 
 
-def tiles_path() -> Path:
-    return maps_dir() / "region.pmtiles"
+REGIONS_PATH = REPO_ROOT / "config" / "maps" / "regions.yaml"
 
 
 def web_dir() -> Path:
     return maps_dir() / "web"
 
 
-def info_path() -> Path:
-    return maps_dir() / "region.json"
+def slug(name: str) -> str:
+    import re
+    s = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return s[:60] or "region"
 
 
-def region_info() -> dict | None:
-    try:
-        return json.loads(info_path().read_text())
-    except (OSError, ValueError):
-        return None
+def tiles_path(region: str) -> Path:
+    return maps_dir() / "regions" / f"{slug(region)}.pmtiles"
+
+
+def info_path(region: str) -> Path:
+    return maps_dir() / "regions" / f"{slug(region)}.json"
+
+
+def regions() -> list[dict]:
+    """Installed regions, largest first."""
+    out = []
+    for f in sorted((maps_dir() / "regions").glob("*.json")):
+        try:
+            info = json.loads(f.read_text())
+        except (OSError, ValueError):
+            continue
+        if (f.with_suffix(".pmtiles")).exists():
+            out.append({**info, "slug": f.stem})
+    return sorted(out, key=lambda r: -r.get("bytes", 0))
+
+
+def region_info(region: str) -> dict | None:
+    return next((r for r in regions() if r["slug"] == slug(region)), None)
 
 
 def installed() -> bool:
-    return tiles_path().exists() and (web_dir() / "maplibre-gl.js").exists()
+    return bool(regions()) and (web_dir() / "maplibre-gl.js").exists()
 
 
 def _get(url: str, timeout: int = 120) -> bytes:
@@ -127,18 +156,76 @@ def latest_build(get=_get) -> str:
 
 # ───────────────────────────── install ─────────────────────────────
 
-def region_bbox(area: str, radius_mi: float, geocode=None) -> tuple[float, float, float, float]:
+class AreaError(ValueError):
+    pass
+
+
+def named_regions() -> dict:
+    import yaml
+    try:
+        return {k.lower(): v for k, v in (yaml.safe_load(REGIONS_PATH.read_text()) or {})["regions"].items()}
+    except (OSError, KeyError, TypeError):
+        return {}
+
+
+def lookup(place: str) -> tuple[float, float, list[float] | None]:
+    """(lat, lon, [south, north, west, east] boundary or None) for a place name."""
+    import time
+    import urllib.parse
+    q = urllib.parse.urlencode({"q": place, "format": "json", "limit": 1})
+    time.sleep(1)  # the free geocoder asks for at most one request a second
+    hits = json.loads(_get(f"https://nominatim.openstreetmap.org/search?{q}", timeout=30))
+    if not hits:
+        raise AreaError(f"couldn't find '{place}'")
+    h = hits[0]
+    bb = [float(x) for x in h["boundingbox"]] if h.get("class") == "boundary" or h.get("type") in (
+        "administrative", "county", "city", "town", "village", "state") else None
+    return float(h["lat"]), float(h["lon"]), bb
+
+
+def region_bbox(area: str, radius_mi: float | None = None, geocode=None) -> tuple[float, float, float, float]:
+    """(west, south, east, north) for any of the ways a region can be described."""
+    import re
     from rag import usgs_topo
-    lat, lon = (geocode or usgs_topo.locate)(area)
-    return usgs_topo.bbox(lat, lon, radius_mi)
+    look = geocode or lookup
+    area = area.strip()
+    nums = [float(x) for x in re.findall(r"-?\d+(?:\.\d+)?", area)] if re.fullmatch(
+        r"[\s\d.,-]+", area) else []
+    if len(nums) == 4:                      # west,south,east,north
+        w, s_, e, n = nums
+        if not (w < e and s_ < n):
+            raise AreaError("a box is west,south,east,north")
+        return w, s_, e, n
+    if len(nums) == 2:                      # lat,lon
+        return usgs_topo.bbox(nums[0], nums[1], radius_mi or 25)
+    named = named_regions().get(area.lower())
+    places = named["places"] if named else [p.strip() for p in area.split(";") if p.strip()]
+    if not places:
+        raise AreaError("describe the area: a place, lat,lon, a box, or a named region")
+    if len(places) == 1 and radius_mi:
+        lat, lon, _ = look(places[0])
+        return usgs_topo.bbox(lat, lon, radius_mi)
+    boxes = []
+    for place in places:
+        lat, lon, bb = look(place)
+        if bb:
+            south, north, west, east = bb
+            boxes.append((west, south, east, north))
+        else:                               # a point (a street, a landmark): 10 miles around it
+            boxes.append(usgs_topo.bbox(lat, lon, 10))
+    w, s_, e, n = (min(b[0] for b in boxes), min(b[1] for b in boxes),
+                   max(b[2] for b in boxes), max(b[3] for b in boxes))
+    pad_x, pad_y = (e - w) * 0.03, (n - s_) * 0.03   # a little margin around the edges
+    return w - pad_x, s_ - pad_y, e + pad_x, n + pad_y
 
 
-def extract(area: str, radius_mi: float, dry_run: bool = False, max_zoom: int = MAX_ZOOM,
-            run=subprocess.run, geocode=None) -> dict:
-    """Cut the region out of the latest worldwide build into region.pmtiles."""
+def extract(area: str, radius_mi: float | None = None, dry_run: bool = False, max_zoom: int = MAX_ZOOM,
+            run=subprocess.run, geocode=None, name: str | None = None) -> dict:
+    """Cut the region out of the latest worldwide build into regions/<name>.pmtiles."""
     box = region_bbox(area, radius_mi, geocode)
     src = latest_build()
-    out = tiles_path()
+    name = name or (f"{area} ({radius_mi:g} mi)" if radius_mi else area)
+    out = tiles_path(name)
     out.parent.mkdir(parents=True, exist_ok=True)
     cmd = [str(pmtiles_bin()), "extract", src, str(out), "--bbox=" + ",".join(f"{v:.5f}" for v in box),
            f"--maxzoom={max_zoom}"]
@@ -147,12 +234,21 @@ def extract(area: str, radius_mi: float, dry_run: bool = False, max_zoom: int = 
     r = run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError((r.stderr or r.stdout).strip()[-400:] or "pmtiles extract failed")
-    info = {"area": area, "radius_mi": radius_mi, "bbox": box, "max_zoom": max_zoom,
+    info = {"name": name, "area": area, "radius_mi": radius_mi, "bbox": list(box), "max_zoom": max_zoom,
             "source": src, "output": (r.stdout + r.stderr).strip()[-400:]}
     if not dry_run:
         info["bytes"] = out.stat().st_size
-        info_path().write_text(json.dumps(info, indent=1))
+        info_path(name).write_text(json.dumps(info, indent=1))
     return info
+
+
+def remove(name: str) -> bool:
+    found = False
+    for f in (tiles_path(name), info_path(name)):
+        if f.exists():
+            f.unlink()
+            found = True
+    return found
 
 
 def fetch_web(get=_get) -> int:
@@ -183,24 +279,45 @@ def fetch_web(get=_get) -> int:
 
 def main(argv: list[str]) -> int:
     cmd = argv[0] if argv else "status"
-    if cmd == "install" and len(argv) >= 2:
-        radius = float(argv[2]) if len(argv) > 2 else 25
-        print(f"Fetching the map viewer, fonts and icons…")
-        print(f"  {fetch_web()} file(s) downloaded")
-        print(f"Cutting a {radius:g}-mile region around {argv[1]} out of the worldwide map…")
-        info = extract(argv[1], radius)
-        print(f"  done: {info['bytes'] / 1e6:.0f} MB in {tiles_path()}")
-        return 0
-    if cmd == "status":
-        info = region_info()
-        if not installed() or not info:
-            print("No offline map installed. Run: pergamon maps install \"<place>\" <miles>")
-            return 1
-        print(f"Offline map: {info['radius_mi']:g} miles around {info['area']}, "
-              f"{info.get('bytes', 0) / 1e6:.0f} MB, zoom up to {info['max_zoom']}.")
-        return 0
+    try:
+        if cmd == "install" and len(argv) >= 2:
+            dry = "--dry-run" in argv
+            rest = [a for a in argv[2:] if not a.startswith("--")]
+            zoom = next((int(a.split("=")[1]) for a in argv if a.startswith("--maxzoom=")), MAX_ZOOM)
+            radius = float(rest[0]) if rest else None
+            if not dry:
+                print(f"Viewer, fonts and icons: {fetch_web()} file(s) downloaded")
+            box = region_bbox(argv[1], radius)
+            print(f"Area: west {box[0]:.3f}, south {box[1]:.3f}, east {box[2]:.3f}, north {box[3]:.3f} "
+                  f"(about {(box[2] - box[0]) * 58:.0f} × {(box[3] - box[1]) * 69:.0f} miles)")
+            info = extract(argv[1], radius, dry_run=dry, max_zoom=zoom, geocode=lambda p: _cached(p))
+            print(info["output"][-300:] if dry else f"Installed '{info['name']}': {info['bytes'] / 1e6:.0f} MB")
+            return 0
+        if cmd == "status":
+            rs = regions()
+            if not rs:
+                print('No offline map installed. Run: pergamon maps install "<place or region>"')
+                return 1
+            for r in rs:
+                print(f"  {r['name']:<34} {r.get('bytes', 0) / 1e6:7.0f} MB  zoom ≤{r['max_zoom']}")
+            return 0
+        if cmd == "remove" and len(argv) > 1:
+            print("Removed." if remove(argv[1]) else "No region by that name.")
+            return 0
+    except (AreaError, RuntimeError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
     print(__doc__, file=sys.stderr)
     return 2
+
+
+_lookups: dict = {}
+
+
+def _cached(place: str):
+    if place not in _lookups:
+        _lookups[place] = lookup(place)
+    return _lookups[place]
 
 
 if __name__ == "__main__":

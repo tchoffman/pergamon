@@ -25,7 +25,8 @@ from rag.sandbox import record, sandbox
 # A preset name with no file: the effective config is exactly the overrides.
 EMPTY_PRESET = "_none"
 # Free-text options need an example value to test with.
-SAMPLE_OPTIONS = {"usgs-topo": {"area": "Asheville, NC", "radius_mi": 5,
+SAMPLE_OPTIONS = {"offline-map": {"regions": ["Keller, TX"]},
+                  "usgs-topo": {"area": "Asheville, NC", "radius_mi": 5,
                                 "editions": ["current", "historical"]},
                   "osm-regional": {"regions": ["us-georgia"], "layers": [
     "streets", "contours-feet", "contours-meters", "hillshade", "slope", "wikipedia"]}}

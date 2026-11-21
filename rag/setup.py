@@ -104,9 +104,11 @@ def _prompt_item_options(item: dict, current: dict | None) -> dict:
                 out[name] = answer
         elif opt.get("type") == "string":
             placeholder = opt.get("placeholder", "")
-            answer = questionary.text(prompt, default=(",".join(default) if isinstance(default, list) else (default or ""))).ask()
+            joiner = opt.get("separator", ",")
+            answer = questionary.text(prompt, default=(joiner.join(default) if isinstance(default, list) else (default or ""))).ask()
             if isinstance(item.get("defaults", {}).get(name), list) or opt.get("multi"):
-                out[name] = [x.strip() for x in (answer or "").split(",") if x.strip()]
+                sep = opt.get("separator", ",")  # map regions contain commas, so they use |
+                out[name] = [x.strip() for x in (answer or "").split(sep) if x.strip()]
             else:
                 out[name] = answer
         # Items with no options still appear in enable map as {} — that's fine.

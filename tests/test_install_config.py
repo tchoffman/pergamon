@@ -41,7 +41,7 @@ def test_catalog_items_have_fetcher():
     catalog = load_catalog()
     allowed_fetchers = {
         "kiwix-zim", "archive-pdf", "gutenberg",
-        "stackexchange", "mirror-site", "osmand-region", "usgs-topo",
+        "stackexchange", "mirror-site", "osmand-region", "usgs-topo", "offline-map",
     }
     for item_id, item in catalog.items():
         assert item.get("fetcher") in allowed_fetchers, (

@@ -88,6 +88,13 @@ for item_id, opts in enable.items():
             continue
         layers = merged_opts.get("layers") or ["streets"]
         env_pairs = [f"OSM_REGIONS={','.join(regions)}", f"OSM_LAYERS={','.join(layers)}"]
+    elif fetcher == "offline-map":
+        regions = merged_opts.get("regions") or []
+        if isinstance(regions, str):
+            regions = [r for r in regions.split("|") if r.strip()]
+        if not regions:
+            continue
+        env_pairs = [f"MAP_REGIONS={'|'.join(regions)}"]
     elif fetcher == "usgs-topo":
         area = (merged_opts.get("area") or "").strip()
         if not area:
@@ -100,7 +107,8 @@ for item_id, opts in enable.items():
 
     size = item_size_mb(item, merged_opts)
     size_str = f"{size} MB" if size else "?"
-    print(f"{fetcher}\t{item_id}\t{size_str}\t{';'.join(env_pairs)}")
+    # \x1f (unit separator) between settings: values may contain ; and , (map regions)
+    print(f"{fetcher}\t{item_id}\t{size_str}\t{chr(31).join(env_pairs)}")
 PY
 )"
 
@@ -129,7 +137,7 @@ while IFS=$'\t' read -r fetcher item size envs; do
   echo "---- $item ($fetcher, $size) ----"
   # Convert "k=v;k=v" to inline env for a single invocation
   env_assignments=()
-  IFS=';' read -r -a parts <<< "$envs"
+  IFS=$'\x1f' read -r -a parts <<< "$envs"
   for p in "${parts[@]}"; do
     env_assignments+=("$p")
   done

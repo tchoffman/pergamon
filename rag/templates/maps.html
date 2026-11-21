@@ -6,15 +6,22 @@
 {% endblock %}
 {% block content %}
   {% if installed %}
+    {% if regions|length > 1 %}
+    <form class="region-pick" method="get">
+      <select name="region" aria-label="map region" onchange="this.form.submit()">
+        {% for r in regions %}<option value="{{ r.slug }}" {% if r.slug == info.slug %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+      </select>
+    </form>
+    {% endif %}
     <div id="map" class="map"></div>
-    <p class="muted small">{{ info.radius_mi|round|int }} miles around {{ info.area }} · map data
-      © OpenStreetMap contributors, Protomaps. Works with no internet.</p>
+    <p class="muted small">{{ info.name }} · map data © OpenStreetMap contributors, Protomaps.
+      Works with no internet.</p>
   {% else %}
     <p>No offline map is installed on this hub yet.</p>
     {% if is_host %}
-    <p class="muted">Add one with <code>pergamon maps install "Your Town, ST" 25</code> (a place and a
-      radius in miles), or pick <em>Offline street map</em> in <code>pergamon setup</code>.
-      A 25-mile region is usually a few hundred MB.</p>
+    <p class="muted">Add one with <code>pergamon maps install "Your Town, ST"</code> (a town or
+      county), a named region like <code>"North Texas"</code>, or <code>"lat,lon" 25</code> for 25 miles
+      around a point. A metro area is usually 150–250 MB.</p>
     {% endif %}
   {% endif %}
 {% endblock %}
@@ -36,7 +43,7 @@
           version: 8,
           glyphs: location.origin + "/maps/web/fonts/{fontstack}/{range}.pbf",
           sprite: location.origin + "/maps/web/sprites/" + flavor,
-          sources: { protomaps: { type: "vector", url: "pmtiles://" + location.origin + "/maps/region.pmtiles",
+          sources: { protomaps: { type: "vector", url: "pmtiles://" + location.origin + "/maps/regions/{{ info.slug }}.pmtiles",
                                   attribution: "© OpenStreetMap, Protomaps" } },
           layers: basemaps.layers("protomaps", basemaps.namedFlavor(flavor), { lang: "en" }),
         },

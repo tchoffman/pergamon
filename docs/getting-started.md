@@ -222,6 +222,17 @@ Every app has the same bar at the top; tap **‹ Pergamon** to go back home.
   USB bundles carry them to other hubs; the outside of each shows only who
   it's for, never who sent it, and times are blurred by up to two days. The
   inbox only opens for a fresh note signed by the recipient's key.
+- Maps (🗺️) — an offline street map that pans and zooms on phones, with no
+  internet. Install regions with `pergamon maps install "<area>"`, where the
+  area is a town or county (its own boundary), a named region from
+  `config/maps/regions.yaml` ("North Texas", "Atlanta Metro"), `"lat,lon" 25`
+  for 25 miles around a point, a box `"west,south,east,north"`, or several
+  places joined with `;`. `--dry-run` shows the size first (a metro area is
+  usually 150–250 MB). Regions are cut from the latest worldwide Protomaps
+  build with the `pmtiles` tool (`brew install pmtiles`), downloading only the
+  tiles inside; the page offers a picker when several are installed and opens
+  on the one containing the hub. Also selectable in setup as *Offline street
+  map*. `pergamon maps status | remove <name>`.
 - Guide (🧭) — what's useful around here. *Plant* shows the area's frost
   dates (NOAA 1991-2020 normals from the nearest weather station that records
   them, fetched once and cached; the host can set them by hand) and which
